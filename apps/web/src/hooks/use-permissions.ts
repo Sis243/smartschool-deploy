@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/auth.store';
 const GROUPES_ROLES = {
   finances: ['ADMIN', 'DIRECTEUR', 'COMPTABLE', 'SECRETAIRE'],
   rhGestion: ['ADMIN', 'DIRECTEUR'],
+  paie: ['ADMIN', 'DIRECTEUR', 'COMPTABLE'],
   autisme: ['ADMIN', 'DIRECTEUR', 'THERAPEUTE'],
   inscriptions: ['ADMIN', 'DIRECTEUR', 'SECRETAIRE'],
 } as const;
@@ -24,6 +25,7 @@ export function usePermissions() {
     isSuperAdmin,
     canVoirFinances: hasRole(GROUPES_ROLES.finances),
     canGererRh: hasRole(GROUPES_ROLES.rhGestion),
+    canGererPaie: hasRole(GROUPES_ROLES.paie),
     canVoirAutisme: hasRole(GROUPES_ROLES.autisme),
     canVoirInscriptions: hasRole(GROUPES_ROLES.inscriptions),
   };

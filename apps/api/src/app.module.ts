@@ -4,6 +4,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './prisma/prisma.module';
 import { StorageModule } from './storage/storage.module';
+import { BrevoModule } from './common/services/brevo.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { TenantModule } from './modules/tenant/tenant.module';
 import { UsersModule } from './modules/users/users.module';
@@ -51,6 +52,7 @@ import configuration from './config/configuration';
     ScheduleModule.forRoot(),
     PrismaModule,
     StorageModule,
+    BrevoModule,
     AuthModule,
     TenantModule,
     UsersModule,

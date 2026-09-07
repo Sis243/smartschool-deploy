@@ -1,12 +1,17 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StatutPresence } from '@prisma/client';
 import { CreatePersonnelDto } from './dto/personnel.dto';
+import { CreateFichePaieDto } from './dto/paie.dto';
+import { AuthService } from '../auth/auth.service';
 
 @Injectable()
 export class RhService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly authService: AuthService,
+  ) {}
 
   async findAllPersonnel(tenantId: string) {
     return this.prisma.user.findMany({
@@ -29,10 +34,9 @@ export class RhService {
     if (existant) throw new ConflictException('Un utilisateur avec cet email existe déjà');
 
     const bcrypt = await import('bcryptjs');
-    // Mot de passe temporaire aléatoire si non fourni — jamais de valeur
-    // devinable comme "changeme123" utilisée en clair sur un compte réel.
-    const motDePasseTemporaire = dto.password || randomBytes(9).toString('base64url');
-    const hashedPassword = await bcrypt.hash(motDePasseTemporaire, 12);
+    // Mot de passe initial inconnu de tous — la personne choisit le sien via
+    // le lien d'invitation envoyé par e-mail, jamais transmis à la main.
+    const hashedPassword = await bcrypt.hash(randomBytes(24).toString('hex'), 12);
 
     const user = await this.prisma.user.create({
       data: {
@@ -53,7 +57,8 @@ export class RhService {
       },
     });
 
-    return { ...user, motDePasseTemporaire: dto.password ? undefined : motDePasseTemporaire };
+    const invitationEnvoyee = await this.authService.envoyerInvitation(user.id);
+    return { ...user, invitationEnvoyee };
   }
 
   async getPresencesPersonnel(tenantId: string, date?: string) {
@@ -76,5 +81,86 @@ export class RhService {
       update: { statut: data.statut as StatutPresence },
       create: { userId: data.userId, statut: data.statut as StatutPresence, date, tenantId },
     });
+  }
+
+  // ========== PAIE ==========
+  // Structure volontairement libre : aucun barème, taux ou cotisation n'est
+  // codé en dur — chaque établissement ajoute les lignes (primes/déductions)
+  // qui correspondent à sa propre façon de calculer la paie.
+
+  private calculerTotal(salaireBase: number, lignes: { type: string; montant: number }[]) {
+    const primes = lignes.filter((l) => l.type === 'PRIME').reduce((s, l) => s + l.montant, 0);
+    const deductions = lignes.filter((l) => l.type === 'DEDUCTION').reduce((s, l) => s + l.montant, 0);
+    return { primes, deductions, net: salaireBase + primes - deductions };
+  }
+
+  async getFichesPaie(tenantId: string, query: { userId?: string; periode?: string }) {
+    const fiches = await this.prisma.fichePaie.findMany({
+      where: { tenantId, userId: query.userId, periode: query.periode },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, role: true } },
+        lignes: true,
+      },
+      orderBy: [{ periode: 'desc' }, { createdAt: 'desc' }],
+    });
+    return fiches.map((f) => ({ ...f, ...this.calculerTotal(f.salaireBase, f.lignes) }));
+  }
+
+  async getFichePaieById(tenantId: string, id: string) {
+    const fiche = await this.prisma.fichePaie.findFirst({
+      where: { id, tenantId },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, role: true } },
+        lignes: true,
+      },
+    });
+    if (!fiche) throw new NotFoundException('Fiche de paie introuvable');
+    return { ...fiche, ...this.calculerTotal(fiche.salaireBase, fiche.lignes) };
+  }
+
+  async createFichePaie(tenantId: string, dto: CreateFichePaieDto) {
+    const user = await this.prisma.user.findFirst({ where: { id: dto.userId, tenantId } });
+    if (!user) throw new NotFoundException('Membre du personnel introuvable');
+
+    const existante = await this.prisma.fichePaie.findUnique({
+      where: { userId_periode: { userId: dto.userId, periode: dto.periode } },
+    });
+    if (existante) {
+      throw new BadRequestException('Une fiche de paie existe déjà pour cette personne sur cette période');
+    }
+
+    const fiche = await this.prisma.fichePaie.create({
+      data: {
+        tenantId,
+        userId: dto.userId,
+        periode: dto.periode,
+        salaireBase: dto.salaireBase,
+        notes: dto.notes,
+        lignes: dto.lignes?.length
+          ? { create: dto.lignes.map((l) => ({ type: l.type, libelle: l.libelle, montant: l.montant })) }
+          : undefined,
+      },
+      include: {
+        user: { select: { id: true, firstName: true, lastName: true, role: true } },
+        lignes: true,
+      },
+    });
+    return { ...fiche, ...this.calculerTotal(fiche.salaireBase, fiche.lignes) };
+  }
+
+  async changerStatutFichePaie(tenantId: string, id: string, statut: 'BROUILLON' | 'VALIDEE' | 'PAYEE') {
+    const fiche = await this.prisma.fichePaie.findFirst({ where: { id, tenantId } });
+    if (!fiche) throw new NotFoundException('Fiche de paie introuvable');
+    return this.prisma.fichePaie.update({ where: { id }, data: { statut } });
+  }
+
+  async deleteFichePaie(tenantId: string, id: string) {
+    const fiche = await this.prisma.fichePaie.findFirst({ where: { id, tenantId } });
+    if (!fiche) throw new NotFoundException('Fiche de paie introuvable');
+    if (fiche.statut === 'PAYEE') {
+      throw new BadRequestException('Impossible de supprimer une fiche déjà marquée payée');
+    }
+    await this.prisma.fichePaie.delete({ where: { id } });
+    return { message: 'Fiche de paie supprimée' };
   }
 }

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, CheckCircle, Clock, Plus, Search } from 'lucide-react';
+import { Users, CheckCircle, Clock, Plus, Search, Trash2, Wallet, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -41,19 +41,21 @@ const statutPresence: Record<string, { label: string; cls: string }> = {
 // ─── Dialog Nouveau personnel ─────────────────────────────────────────────────
 function PersonnelDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', role: 'ENSEIGNANT', password: '' });
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', role: 'ENSEIGNANT' });
 
   const mutation = useMutation({
-    mutationFn: () => api.post('/api/v1/rh/personnel', { ...form, password: form.password || undefined }),
+    mutationFn: () => api.post('/api/v1/rh/personnel', form),
     onSuccess: (res: any) => {
-      const tempPassword = res?.data?.data?.motDePasseTemporaire;
+      const invitationEnvoyee = res?.data?.data?.invitationEnvoyee;
       toast.success(
-        tempPassword ? `Personnel ajouté — mot de passe temporaire : ${tempPassword}` : 'Personnel ajouté',
-        { duration: tempPassword ? 15000 : 4000 },
+        invitationEnvoyee
+          ? `Personnel ajouté — un e-mail d'activation a été envoyé à ${form.email}`
+          : "Personnel ajouté — l'e-mail d'activation n'a pas pu être envoyé, réessayez depuis \"Mot de passe oublié\"",
+        { duration: 6000 },
       );
       qc.invalidateQueries({ queryKey: ['personnel'] });
       onClose();
-      setForm({ firstName: '', lastName: '', email: '', phone: '', role: 'ENSEIGNANT', password: '' });
+      setForm({ firstName: '', lastName: '', email: '', phone: '', role: 'ENSEIGNANT' });
     },
     onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erreur lors de l\'ajout'),
   });
@@ -90,10 +92,9 @@ function PersonnelDialog({ open, onClose }: { open: boolean; onClose: () => void
               </Select>
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Mot de passe initial</Label>
-            <Input placeholder="Laisser vide pour générer un mot de passe automatiquement" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Un e-mail d&apos;activation sera envoyé à cette adresse pour que la personne choisisse elle-même son mot de passe.
+          </p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Annuler</Button>
@@ -253,9 +254,254 @@ function PresencesTab() {
   );
 }
 
+// ─── Paie ───────────────────────────────────────────────────────────────────
+const statutPaie: Record<string, { label: string; cls: string }> = {
+  BROUILLON: { label: 'Brouillon', cls: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300' },
+  VALIDEE: { label: 'Validée', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+  PAYEE: { label: 'Payée', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
+};
+
+function formatMontant(n: number) {
+  return new Intl.NumberFormat('fr-FR').format(n ?? 0);
+}
+
+type LignePaieForm = { type: 'PRIME' | 'DEDUCTION'; libelle: string; montant: string };
+
+// Formulaire volontairement libre : aucun champ de prime/déduction n'est
+// obligatoire, chaque établissement ajoute les lignes qui correspondent à sa
+// propre méthode de calcul de la paie.
+function PaieDialog({ open, onClose, personnel }: { open: boolean; onClose: () => void; personnel: any[] }) {
+  const qc = useQueryClient();
+  const moisCourant = new Date().toISOString().slice(0, 7);
+  const [userId, setUserId] = useState('');
+  const [periode, setPeriode] = useState(moisCourant);
+  const [salaireBase, setSalaireBase] = useState('');
+  const [notes, setNotes] = useState('');
+  const [lignes, setLignes] = useState<LignePaieForm[]>([]);
+
+  const reset = () => {
+    setUserId(''); setPeriode(moisCourant); setSalaireBase(''); setNotes(''); setLignes([]);
+  };
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.post('/api/v1/rh/paie', {
+        userId,
+        periode,
+        salaireBase: Number(salaireBase) || 0,
+        notes: notes || undefined,
+        lignes: lignes
+          .filter((l) => l.libelle && l.montant)
+          .map((l) => ({ type: l.type, libelle: l.libelle, montant: Number(l.montant) || 0 })),
+      }),
+    onSuccess: () => {
+      toast.success('Fiche de paie créée');
+      qc.invalidateQueries({ queryKey: ['fiches-paie'] });
+      onClose();
+      reset();
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erreur lors de la création'),
+  });
+
+  const ajouterLigne = (type: 'PRIME' | 'DEDUCTION') =>
+    setLignes([...lignes, { type, libelle: '', montant: '' }]);
+  const retirerLigne = (i: number) => setLignes(lignes.filter((_, idx) => idx !== i));
+  const majLigne = (i: number, patch: Partial<LignePaieForm>) =>
+    setLignes(lignes.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { onClose(); reset(); } }}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Nouvelle fiche de paie</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Personnel *</Label>
+              <Select value={userId} onValueChange={setUserId}>
+                <SelectTrigger><SelectValue placeholder="Choisir..." /></SelectTrigger>
+                <SelectContent>
+                  {personnel.map((p: any) => (
+                    <SelectItem key={p.id} value={p.id}>{p.firstName} {p.lastName}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Période *</Label>
+              <Input type="month" value={periode} onChange={(e) => setPeriode(e.target.value)} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Salaire de base *</Label>
+            <Input type="number" placeholder="ex: 350000" value={salaireBase} onChange={(e) => setSalaireBase(e.target.value)} />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Primes et déductions (facultatif)</Label>
+              <div className="flex gap-2">
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => ajouterLigne('PRIME')}>+ Prime</Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => ajouterLigne('DEDUCTION')}>+ Déduction</Button>
+              </div>
+            </div>
+            {lignes.map((l, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <Badge variant={l.type === 'PRIME' ? 'default' : 'destructive'} className="text-xs shrink-0">{l.type === 'PRIME' ? 'Prime' : 'Déd.'}</Badge>
+                <Input placeholder="Libellé (ex: Transport)" value={l.libelle} onChange={(e) => majLigne(i, { libelle: e.target.value })} className="flex-1" />
+                <Input type="number" placeholder="Montant" value={l.montant} onChange={(e) => majLigne(i, { montant: e.target.value })} className="w-28" />
+                <Button type="button" size="icon" variant="ghost" className="h-8 w-8 shrink-0 text-muted-foreground" onClick={() => retirerLigne(i)}>
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            ))}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Notes</Label>
+            <Input placeholder="Optionnel" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => { onClose(); reset(); }}>Annuler</Button>
+          <Button
+            onClick={() => mutation.mutate()}
+            disabled={!userId || !periode || !salaireBase || mutation.isPending}
+            className="bg-blue-600 hover:bg-blue-500"
+          >
+            {mutation.isPending ? 'Création...' : 'Créer la fiche'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PaieDetailDialog({ id, onClose }: { id: string | null; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { data: fiche, isLoading } = useQuery({
+    queryKey: ['fiche-paie', id],
+    queryFn: async () => (await api.get(`/api/v1/rh/paie/${id}`)).data.data,
+    enabled: !!id,
+  });
+
+  const changerStatut = useMutation({
+    mutationFn: (statut: string) => api.patch(`/api/v1/rh/paie/${id}/statut`, { statut }),
+    onSuccess: () => {
+      toast.success('Statut mis à jour');
+      qc.invalidateQueries({ queryKey: ['fiches-paie'] });
+      qc.invalidateQueries({ queryKey: ['fiche-paie', id] });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erreur'),
+  });
+
+  return (
+    <Dialog open={!!id} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Fiche de paie</DialogTitle></DialogHeader>
+        {isLoading || !fiche ? (
+          <div className="space-y-2 py-4">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-5 w-full" />)}</div>
+        ) : (
+          <div className="space-y-4 py-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-medium">{fiche.user.firstName} {fiche.user.lastName}</p>
+                <p className="text-xs text-muted-foreground">{fiche.periode}</p>
+              </div>
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statutPaie[fiche.statut]?.cls}`}>{statutPaie[fiche.statut]?.label ?? fiche.statut}</span>
+            </div>
+            <div className="space-y-1.5 text-sm">
+              <div className="flex justify-between"><span className="text-muted-foreground">Salaire de base</span><span>{formatMontant(fiche.salaireBase)}</span></div>
+              {fiche.lignes.map((l: any) => (
+                <div key={l.id} className="flex justify-between">
+                  <span className="text-muted-foreground">{l.libelle}</span>
+                  <span className={l.type === 'PRIME' ? 'text-emerald-600' : 'text-red-600'}>{l.type === 'PRIME' ? '+' : '-'}{formatMontant(l.montant)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between font-semibold pt-2 border-t"><span>Net</span><span>{formatMontant(fiche.net)}</span></div>
+            </div>
+            {fiche.notes && <p className="text-xs text-muted-foreground italic">{fiche.notes}</p>}
+            {fiche.statut !== 'PAYEE' && (
+              <div className="flex gap-2 pt-2">
+                {fiche.statut === 'BROUILLON' && (
+                  <Button size="sm" variant="outline" onClick={() => changerStatut.mutate('VALIDEE')} disabled={changerStatut.isPending}>Valider</Button>
+                )}
+                {fiche.statut === 'VALIDEE' && (
+                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-500" onClick={() => changerStatut.mutate('PAYEE')} disabled={changerStatut.isPending}>Marquer payée</Button>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PaieTab() {
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [detailId, setDetailId] = useState<string | null>(null);
+  const [periodeFiltre, setPeriodeFiltre] = useState('');
+
+  const { data: personnel = [] } = useQuery({
+    queryKey: ['personnel'],
+    queryFn: async () => (await api.get('/api/v1/rh/personnel')).data.data,
+  });
+  const { data: fiches = [], isLoading } = useQuery({
+    queryKey: ['fiches-paie', periodeFiltre],
+    queryFn: async () => (await api.get(`/api/v1/rh/paie${periodeFiltre ? `?periode=${periodeFiltre}` : ''}`)).data.data,
+  });
+
+  return (
+    <>
+      <PaieDialog open={dialogOpen} onClose={() => setDialogOpen(false)} personnel={personnel} />
+      <PaieDetailDialog id={detailId} onClose={() => setDetailId(null)} />
+      <Card className="border-border/50 shadow-sm">
+        <CardHeader className="pb-0">
+          <div className="flex flex-wrap gap-3 items-center justify-between">
+            <Input type="month" value={periodeFiltre} onChange={(e) => setPeriodeFiltre(e.target.value)} className="w-44" />
+            <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={() => setDialogOpen(true)}>
+              <Plus className="w-4 h-4" />Nouvelle fiche
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0 mt-4">
+          <Table>
+            <TableHeader>
+              <TableRow className="hover:bg-transparent">
+                <TableHead>Agent</TableHead><TableHead>Période</TableHead>
+                <TableHead>Net</TableHead><TableHead>Statut</TableHead><TableHead></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? Array.from({ length: 3 }).map((_, i) => (
+                <TableRow key={i}>{Array.from({ length: 5 }).map((__, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
+              )) : fiches.length === 0 ? (
+                <TableRow><TableCell colSpan={5} className="py-12 text-center text-muted-foreground">Aucune fiche de paie</TableCell></TableRow>
+              ) : fiches.map((f: any) => (
+                <TableRow key={f.id} className="cursor-pointer" onClick={() => setDetailId(f.id)}>
+                  <TableCell>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-8 w-8"><AvatarFallback className="text-xs bg-blue-600 text-white font-semibold">{getInitials(f.user.firstName, f.user.lastName)}</AvatarFallback></Avatar>
+                      <p className="text-sm font-medium">{f.user.firstName} {f.user.lastName}</p>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{f.periode}</TableCell>
+                  <TableCell className="text-sm font-medium">{formatMontant(f.net)}</TableCell>
+                  <TableCell><span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statutPaie[f.statut]?.cls}`}>{statutPaie[f.statut]?.label ?? f.statut}</span></TableCell>
+                  <TableCell><Button size="icon" variant="ghost" className="h-7 w-7"><Eye className="w-4 h-4" /></Button></TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
 // ─── Vue principale ───────────────────────────────────────────────────────────
 export function RhView() {
-  const { canGererRh } = usePermissions();
+  const { canGererRh, canGererPaie } = usePermissions();
   const { data: personnel = [] } = useQuery({ queryKey: ['personnel'], queryFn: async () => (await api.get('/api/v1/rh/personnel')).data.data });
   const today = new Date().toISOString().split('T')[0];
   const { data: presences = [] } = useQuery({
@@ -298,9 +544,11 @@ export function RhView() {
         <TabsList>
           <TabsTrigger value="personnel">Personnel</TabsTrigger>
           {canGererRh && <TabsTrigger value="presences">Présences</TabsTrigger>}
+          {canGererPaie && <TabsTrigger value="paie" className="gap-1.5"><Wallet className="w-3.5 h-3.5" />Paie</TabsTrigger>}
         </TabsList>
         <TabsContent value="personnel" className="mt-4"><PersonnelTab /></TabsContent>
         {canGererRh && <TabsContent value="presences" className="mt-4"><PresencesTab /></TabsContent>}
+        {canGererPaie && <TabsContent value="paie" className="mt-4"><PaieTab /></TabsContent>}
       </Tabs>
     </div>
   );

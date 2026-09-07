@@ -131,7 +131,7 @@ export function LoginForm() {
           <CardFooter className="pt-0 flex-col gap-2">
             <p className="text-xs text-slate-500 text-center w-full">
               Mot de passe oublié ?{' '}
-              <span className="text-blue-400 cursor-pointer hover:underline">Contactez votre administrateur</span>
+              <Link href="/forgot-password" className="text-blue-400 hover:underline">Réinitialiser</Link>
             </p>
             <p className="text-xs text-slate-500 text-center w-full">
               Nouvel établissement ?{' '}

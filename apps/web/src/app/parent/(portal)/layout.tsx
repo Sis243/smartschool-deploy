@@ -1,9 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { isParentLoggedIn, getParentInfo } from '@/lib/parent-auth';
+import parentApi from '@/lib/parent-api';
 
 const NAV = [
   {
@@ -51,6 +53,16 @@ export default function ParentPortalLayout({ children }: { children: React.React
     setParent(getParentInfo());
   }, [router]);
 
+  // Actualisation toutes les 30s pour un badge quasi temps réel sans
+  // nécessiter d'infrastructure websocket.
+  const { data: dashboard } = useQuery({
+    queryKey: ['parent-dashboard-badge'],
+    queryFn: async () => (await parentApi.get('/api/v1/parent/dashboard')).data.data,
+    enabled: !!parent,
+    refetchInterval: 30_000,
+  });
+  const notifNonLues: number = dashboard?.notifNonLues ?? 0;
+
   if (!parent) return null;
 
   return (
@@ -73,15 +85,23 @@ export default function ParentPortalLayout({ children }: { children: React.React
       <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-white border-t border-gray-200 flex z-10">
         {NAV.map((item) => {
           const active = pathname === item.href;
+          const isNotifs = item.href === '/parent/notifications';
           return (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex-1 flex flex-col items-center gap-1 py-2 text-xs transition-colors ${
+              className={`flex-1 flex flex-col items-center gap-1 py-2 text-xs transition-colors relative ${
                 active ? 'text-blue-600' : 'text-gray-500'
               }`}
             >
-              {item.icon}
+              <span className="relative">
+                {item.icon}
+                {isNotifs && notifNonLues > 0 && (
+                  <span className="absolute -top-1 -right-1.5 min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                    {notifNonLues > 9 ? '9+' : notifNonLues}
+                  </span>
+                )}
+              </span>
               <span>{item.label}</span>
             </Link>
           );

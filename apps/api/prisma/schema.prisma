@@ -176,6 +176,7 @@ model Tenant {
   demandesInscription DemandeInscription[]
   preuvesPaiement     PreuvePaiement[]
   notifParents        NotifParent[]
+  fichesPaie          FichePaie[]
 
   @@map("tenants")
 }
@@ -197,6 +198,8 @@ model User {
   isSuperAdmin Boolean  @default(false)
   isActive     Boolean  @default(true)
   lastLoginAt  DateTime?
+  resetToken       String?   @unique
+  resetTokenExpiry DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -209,6 +212,7 @@ model User {
   therapiesRealisees  Therapie[]            @relation("TherapeuteTherapie")
   suivisSupervisees   SuiviComportemental[] @relation("TheraeuteSuivi")
   busConduits         Bus[]
+  fichesPaie          FichePaie[]
 
   @@map("users")
 }
@@ -436,6 +440,53 @@ model PresencePersonnel {
 
   @@unique([userId, date])
   @@map("presences_personnel")
+}
+
+// ============================================================
+// PAIE (structure libre — chaque établissement définit ses propres
+// primes/cotisations, aucun barème ou taux n'est imposé par l'application)
+// ============================================================
+
+enum StatutFichePaie {
+  BROUILLON
+  VALIDEE
+  PAYEE
+}
+
+enum TypeLignePaie {
+  PRIME
+  DEDUCTION
+}
+
+model FichePaie {
+  id          String          @id @default(cuid())
+  tenantId    String
+  userId      String
+  periode     String          // ex: "2026-09" (année-mois)
+  salaireBase Float
+  statut      StatutFichePaie @default(BROUILLON)
+  notes       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lignes LignePaie[]
+
+  @@unique([userId, periode])
+  @@map("fiches_paie")
+}
+
+model LignePaie {
+  id       String        @id @default(cuid())
+  ficheId  String
+  type     TypeLignePaie
+  libelle  String        // libre : "Prime de transport", "Cotisation INSS", ...
+  montant  Float
+
+  fiche FichePaie @relation(fields: [ficheId], references: [id], onDelete: Cascade)
+
+  @@map("lignes_paie")
 }
 
 // ============================================================

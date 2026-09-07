@@ -1,7 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import axios from 'axios';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BrevoService } from '../../common/services/brevo.service';
 import { CanalNotification } from '@prisma/client';
 
 export interface SendNotifDto {
@@ -12,89 +11,39 @@ export interface SendNotifDto {
   message: string;
 }
 
-const BREVO_API = 'https://api.brevo.com/v3';
-
 @Injectable()
 export class NotifParentService {
-  private readonly logger = new Logger(NotifParentService.name);
-  private readonly apiKey: string | undefined;
-
   constructor(
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
-  ) {
-    this.apiKey = this.configService.get<string>('brevo.apiKey');
-  }
-
-  private brevoHeaders() {
-    return { 'api-key': this.apiKey!, 'Content-Type': 'application/json' };
-  }
-
-  private async envoyerEmail(to: string, sujet: string, texte: string) {
-    await axios.post(
-      `${BREVO_API}/smtp/email`,
-      {
-        sender: {
-          email: this.configService.get<string>('brevo.senderEmail'),
-          name: this.configService.get<string>('brevo.senderName'),
-        },
-        to: [{ email: to }],
-        subject: sujet,
-        textContent: texte,
-      },
-      { headers: this.brevoHeaders() },
-    );
-  }
-
-  private async envoyerSms(to: string, texte: string) {
-    await axios.post(
-      `${BREVO_API}/transactionalSMS/sms`,
-      {
-        sender: this.configService.get<string>('brevo.smsSender'),
-        recipient: to,
-        content: texte,
-        type: 'transactional',
-      },
-      { headers: this.brevoHeaders() },
-    );
-  }
-
-  private async envoyerWhatsapp(to: string, texte: string) {
-    // API WhatsApp Brevo (nécessite un modèle de message approuvé en
-    // production) — en cas d'échec (modèle non configuré), on se contente de
-    // journaliser plutôt que de faire échouer toute la notification.
-    await axios.post(
-      `${BREVO_API}/whatsapp/sendMessage`,
-      { contactNumbers: [to], senderNumber: this.configService.get<string>('brevo.smsSender'), text: texte },
-      { headers: this.brevoHeaders() },
-    );
-  }
+    private readonly brevo: BrevoService,
+  ) {}
 
   async send(dto: SendNotifDto) {
-    const parent = await this.prisma.parent.findUnique({ where: { id: dto.parentId } });
+    const [parent, tenant] = await Promise.all([
+      this.prisma.parent.findUnique({ where: { id: dto.parentId } }),
+      this.prisma.tenant.findUnique({ where: { id: dto.tenantId }, select: { name: true } }),
+    ]);
 
     let statut: string = 'SIMULE';
-    if (parent && this.apiKey) {
-      try {
-        const texte = `${dto.titre}\n${dto.message}`;
-        if (dto.canal === 'EMAIL' && parent.email) {
-          await this.envoyerEmail(parent.email, dto.titre, texte);
-          statut = 'ENVOYE';
-        } else if (dto.canal === 'SMS') {
-          await this.envoyerSms(parent.telephone, texte);
-          statut = 'ENVOYE';
-        } else if (dto.canal === 'WHATSAPP') {
-          await this.envoyerWhatsapp(parent.telephone, texte);
-          statut = 'ENVOYE';
-        }
-      } catch (error: any) {
-        this.logger.error(`Échec envoi ${dto.canal} à ${dto.parentId}: ${error?.response?.data?.message || error?.message}`);
-        statut = 'ECHEC';
+    // Le nom d'expéditeur affiche l'établissement ("École Bon Départ") plutôt
+    // qu'un nom générique — c'est ce que les parents doivent reconnaître.
+    const nomExpediteur = tenant?.name;
+
+    if (parent) {
+      const texte = `${dto.titre}\n${dto.message}`;
+      let envoye = false;
+      if (dto.canal === 'EMAIL' && parent.email) {
+        envoye = await this.brevo.sendEmail(parent.email, dto.titre, texte, nomExpediteur);
+      } else if (dto.canal === 'SMS') {
+        envoye = await this.brevo.sendSms(parent.telephone, texte, nomExpediteur);
+      } else if (dto.canal === 'WHATSAPP') {
+        envoye = await this.brevo.sendWhatsapp(parent.telephone, texte);
       }
+      if (this.brevo.isConfigured) statut = envoye ? 'ENVOYE' : 'ECHEC';
     }
 
-    // Statut reste 'SIMULE' si aucune clé Brevo n'est configurée — la
-    // notification apparaît quand même dans le portail parent, sans envoi réel.
+    // Statut reste 'SIMULE' si Brevo n'est pas configuré — la notification
+    // apparaît quand même dans le portail parent, juste sans envoi réel.
     return this.prisma.notifParent.create({
       data: {
         tenantId: dto.tenantId,

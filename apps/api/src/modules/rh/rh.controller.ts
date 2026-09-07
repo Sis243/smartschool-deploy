@@ -1,11 +1,14 @@
-import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { RhService } from './rh.service';
 import { CreatePersonnelDto } from './dto/personnel.dto';
+import { CreateFichePaieDto } from './dto/paie.dto';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+
+const ROLES_PAIE = ['ADMIN', 'DIRECTEUR', 'COMPTABLE'] as const;
 
 @ApiTags('RH')
 @ApiBearerAuth()
@@ -42,5 +45,57 @@ export class RhController {
   @ApiOperation({ summary: 'Marquer présence personnel (admin/directeur uniquement)' })
   marquerPresence(@CurrentTenant('id') tenantId: string, @Body() data: any) {
     return this.rhService.marquerPresencePersonnel(tenantId, data);
+  }
+
+  // ── Paie ──────────────────────────────────────────────────────────────────
+  // Réservé à ADMIN/DIRECTEUR/COMPTABLE, en lecture comme en écriture —
+  // données salariales sensibles.
+
+  @Get('paie')
+  @UseGuards(RolesGuard)
+  @Roles(...ROLES_PAIE)
+  @ApiOperation({ summary: 'Lister les fiches de paie' })
+  getFichesPaie(
+    @CurrentTenant('id') tenantId: string,
+    @Query('userId') userId?: string,
+    @Query('periode') periode?: string,
+  ) {
+    return this.rhService.getFichesPaie(tenantId, { userId, periode });
+  }
+
+  @Get('paie/:id')
+  @UseGuards(RolesGuard)
+  @Roles(...ROLES_PAIE)
+  @ApiOperation({ summary: "Détail d'une fiche de paie" })
+  getFichePaieById(@CurrentTenant('id') tenantId: string, @Param('id') id: string) {
+    return this.rhService.getFichePaieById(tenantId, id);
+  }
+
+  @Post('paie')
+  @UseGuards(RolesGuard)
+  @Roles(...ROLES_PAIE)
+  @ApiOperation({ summary: 'Créer une fiche de paie' })
+  createFichePaie(@CurrentTenant('id') tenantId: string, @Body() dto: CreateFichePaieDto) {
+    return this.rhService.createFichePaie(tenantId, dto);
+  }
+
+  @Patch('paie/:id/statut')
+  @UseGuards(RolesGuard)
+  @Roles(...ROLES_PAIE)
+  @ApiOperation({ summary: "Changer le statut d'une fiche de paie (brouillon/validée/payée)" })
+  changerStatutFichePaie(
+    @CurrentTenant('id') tenantId: string,
+    @Param('id') id: string,
+    @Body() body: { statut: 'BROUILLON' | 'VALIDEE' | 'PAYEE' },
+  ) {
+    return this.rhService.changerStatutFichePaie(tenantId, id, body.statut);
+  }
+
+  @Delete('paie/:id')
+  @UseGuards(RolesGuard)
+  @Roles(...ROLES_PAIE)
+  @ApiOperation({ summary: 'Supprimer une fiche de paie (si non payée)' })
+  deleteFichePaie(@CurrentTenant('id') tenantId: string, @Param('id') id: string) {
+    return this.rhService.deleteFichePaie(tenantId, id);
   }
 }
