@@ -145,6 +145,10 @@ model Tenant {
   subscriptionEnd  DateTime?
   isActive         Boolean          @default(true)
   settings         Json?
+  // Modules payants activables/desactivables par ecole (voir ModuleCle dans
+  // common/constants/modules.ts) — Eleves/Notes/Academique/Utilisateurs
+  // restent hors de cette liste : c'est le socle toujours actif.
+  modulesActifs    String[]         @default(["FINANCES", "RH", "PAIE", "BIBLIOTHEQUE", "TRANSPORT", "AUTISME", "MATERNELLE", "COMMUNICATION", "PARENT_PORTAL"])
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 

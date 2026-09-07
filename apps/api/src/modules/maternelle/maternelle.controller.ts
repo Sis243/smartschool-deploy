@@ -5,10 +5,13 @@ import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { ModuleActifGuard } from '../../common/guards/module-actif.guard';
+import { RequireModule } from '../../common/decorators/module.decorator';
 
 @ApiTags('Maternelle')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ModuleActifGuard)
+@RequireModule('MATERNELLE')
 @Controller('maternelle')
 export class MaternelleController {
   constructor(private readonly maternelleService: MaternelleService) {}

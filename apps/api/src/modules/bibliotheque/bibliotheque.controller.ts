@@ -5,12 +5,15 @@ import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { ModuleActifGuard } from '../../common/guards/module-actif.guard';
+import { RequireModule } from '../../common/decorators/module.decorator';
 
 const ROLES_GESTION_BIBLIOTHEQUE = ['ADMIN', 'DIRECTEUR', 'BIBLIOTHECAIRE'] as const;
 
 @ApiTags('Bibliotheque')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ModuleActifGuard)
+@RequireModule('BIBLIOTHEQUE')
 @Controller('bibliotheque')
 export class BibliothequeController {
   constructor(private readonly bibliothequeService: BibliothequeService) {}

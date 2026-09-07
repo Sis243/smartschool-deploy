@@ -17,10 +17,17 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { ModuleActifGuard } from '../../common/guards/module-actif.guard';
+import { RequireModule } from '../../common/decorators/module.decorator';
 
 // Guard that validates JWT and checks type === 'parent'
 import { ParentJwtGuard } from './parent-jwt.guard';
 
+// ModuleActifGuard est posé route par route (jamais au niveau classe) : ce
+// contrôleur mélange routes publiques (tenant résolu par le middleware),
+// routes parent (ParentJwtGuard) et routes admin (JwtAuthGuard) — le guard
+// doit toujours s'exécuter APRÈS l'éventuel guard d'authentification pour
+// lire request.user une fois peuplé.
 @ApiTags('Parent Portal')
 @Controller('parent')
 export class ParentPortalController {
@@ -29,6 +36,8 @@ export class ParentPortalController {
   // ── Public auth endpoints ─────────────────────────────────────────────────
 
   @Post('auth/activer')
+  @UseGuards(ModuleActifGuard)
+  @RequireModule('PARENT_PORTAL')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Activer le portail parent avec le code d\'accès' })
   activer(
@@ -39,6 +48,8 @@ export class ParentPortalController {
   }
 
   @Post('auth/login')
+  @UseGuards(ModuleActifGuard)
+  @RequireModule('PARENT_PORTAL')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Connexion parent par téléphone + PIN' })
   login(
@@ -51,19 +62,22 @@ export class ParentPortalController {
   // ── Authenticated parent endpoints ────────────────────────────────────────
 
   @Get('dashboard')
-  @UseGuards(ParentJwtGuard)
+  @UseGuards(ParentJwtGuard, ModuleActifGuard)
+  @RequireModule('PARENT_PORTAL')
   dashboard(@Request() req: any) {
     return this.service.getDashboard(req.user.tenantId, req.user.sub);
   }
 
   @Get('factures')
-  @UseGuards(ParentJwtGuard)
+  @UseGuards(ParentJwtGuard, ModuleActifGuard)
+  @RequireModule('PARENT_PORTAL')
   factures(@Request() req: any) {
     return this.service.getFactures(req.user.tenantId, req.user.sub);
   }
 
   @Post('paiements/preuve')
-  @UseGuards(ParentJwtGuard)
+  @UseGuards(ParentJwtGuard, ModuleActifGuard)
+  @RequireModule('PARENT_PORTAL')
   soumettrePreuve(
     @Request() req: any,
     @Body()
@@ -80,7 +94,8 @@ export class ParentPortalController {
   }
 
   @Get('notifications')
-  @UseGuards(ParentJwtGuard)
+  @UseGuards(ParentJwtGuard, ModuleActifGuard)
+  @RequireModule('PARENT_PORTAL')
   notifications(
     @Request() req: any,
     @Query('page') page = 1,
@@ -90,7 +105,8 @@ export class ParentPortalController {
   }
 
   @Patch('notifications/:id/lu')
-  @UseGuards(ParentJwtGuard)
+  @UseGuards(ParentJwtGuard, ModuleActifGuard)
+  @RequireModule('PARENT_PORTAL')
   marquerLu(@Request() req: any, @Param('id') id: string) {
     return this.service.marquerLu(id, req.user.sub);
   }
@@ -99,7 +115,8 @@ export class ParentPortalController {
 
   @Get('admin/preuves')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, ModuleActifGuard, RolesGuard)
+  @RequireModule('PARENT_PORTAL')
   @Roles('ADMIN', 'DIRECTEUR', 'COMPTABLE', 'SECRETAIRE')
   getPreuves(@CurrentTenant('id') tenantId: string) {
     return this.service.getPreuvesEnAttente(tenantId);
@@ -107,7 +124,8 @@ export class ParentPortalController {
 
   @Patch('admin/preuves/:id')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, ModuleActifGuard, RolesGuard)
+  @RequireModule('PARENT_PORTAL')
   @Roles('ADMIN', 'DIRECTEUR', 'COMPTABLE', 'SECRETAIRE')
   validerPreuve(
     @CurrentTenant('id') tenantId: string,
@@ -120,7 +138,8 @@ export class ParentPortalController {
 
   @Post('admin/parents/:parentId/access-code')
   @ApiBearerAuth()
-  @UseGuards(JwtAuthGuard, RolesGuard)
+  @UseGuards(JwtAuthGuard, ModuleActifGuard, RolesGuard)
+  @RequireModule('PARENT_PORTAL')
   @Roles('ADMIN', 'DIRECTEUR', 'SECRETAIRE')
   genererCode(
     @CurrentTenant('id') tenantId: string,

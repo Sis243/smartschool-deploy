@@ -5,11 +5,14 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen, DollarSign,
   UserCog, MessageSquare, Bus, Library, Heart, Brain, ClipboardList, Settings, ChevronLeft, ChevronRight, BarChart2,
+  ShieldCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { Separator } from '@/components/ui/separator';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useModulesActifs } from '@/hooks/use-modules-actifs';
+import { ModuleCle } from '@/lib/modules';
 import { cn } from '@/lib/utils';
 
 const navItems = [
@@ -19,23 +22,28 @@ const navItems = [
   { href: '/notes', label: 'Notes & Bulletins', icon: BookOpen },
   // Modules entièrement réservés à certains rôles côté API — masqués aux
   // autres pour éviter une page dont chaque appel échoue en 403.
-  { href: '/finances', label: 'Finances', icon: DollarSign, requires: 'canVoirFinances' as const },
-  { href: '/rh', label: 'Ressources Humaines', icon: UserCog },
-  { href: '/communication', label: 'Communication', icon: MessageSquare },
-  { href: '/transport', label: 'Transport', icon: Bus },
-  { href: '/bibliotheque', label: 'Bibliothèque', icon: Library },
-  { href: '/maternelle', label: 'Maternelle', icon: Heart },
-  { href: '/autisme', label: 'Module Autisme', icon: Brain, requires: 'canVoirAutisme' as const },
+  // `module` : masqué en plus si l'école n'a pas souscrit à ce module payant.
+  { href: '/finances', label: 'Finances', icon: DollarSign, requires: 'canVoirFinances' as const, module: 'FINANCES' as ModuleCle },
+  { href: '/rh', label: 'Ressources Humaines', icon: UserCog, module: 'RH' as ModuleCle },
+  { href: '/communication', label: 'Communication', icon: MessageSquare, module: 'COMMUNICATION' as ModuleCle },
+  { href: '/transport', label: 'Transport', icon: Bus, module: 'TRANSPORT' as ModuleCle },
+  { href: '/bibliotheque', label: 'Bibliothèque', icon: Library, module: 'BIBLIOTHEQUE' as ModuleCle },
+  { href: '/maternelle', label: 'Maternelle', icon: Heart, module: 'MATERNELLE' as ModuleCle },
+  { href: '/autisme', label: 'Module Autisme', icon: Brain, requires: 'canVoirAutisme' as const, module: 'AUTISME' as ModuleCle },
   { href: '/inscriptions', label: 'Inscriptions', icon: ClipboardList, requires: 'canVoirInscriptions' as const },
   { href: '/rapports', label: 'Rapports & Exports', icon: BarChart2, requires: 'canVoirFinances' as const },
   { href: '/parametres', label: 'Paramètres', icon: Settings },
+  { href: '/super-admin', label: 'Super Administration', icon: ShieldCheck, requires: 'isSuperAdmin' as const },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const permissions = usePermissions();
-  const visibleItems = navItems.filter((item) => !item.requires || permissions[item.requires]);
+  const { estActif } = useModulesActifs();
+  const visibleItems = navItems.filter(
+    (item) => (!item.requires || permissions[item.requires]) && (!item.module || estActif(item.module)),
+  );
 
   return (
     <aside

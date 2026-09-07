@@ -5,10 +5,13 @@ import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { ModuleActifGuard } from '../../common/guards/module-actif.guard';
+import { RequireModule } from '../../common/decorators/module.decorator';
 
 @ApiTags('Communication')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ModuleActifGuard)
+@RequireModule('COMMUNICATION')
 @Controller('communication')
 export class CommunicationController {
   constructor(private readonly communicationService: CommunicationService) {}

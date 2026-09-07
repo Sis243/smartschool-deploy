@@ -7,12 +7,15 @@ import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { ModuleActifGuard } from '../../common/guards/module-actif.guard';
+import { RequireModule } from '../../common/decorators/module.decorator';
 
 const ROLES_PAIE = ['ADMIN', 'DIRECTEUR', 'COMPTABLE'] as const;
 
 @ApiTags('RH')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, ModuleActifGuard)
+@RequireModule('RH')
 @Controller('rh')
 export class RhController {
   constructor(private readonly rhService: RhService) {}
@@ -52,6 +55,7 @@ export class RhController {
   // données salariales sensibles.
 
   @Get('paie')
+  @RequireModule('PAIE')
   @UseGuards(RolesGuard)
   @Roles(...ROLES_PAIE)
   @ApiOperation({ summary: 'Lister les fiches de paie' })
@@ -64,6 +68,7 @@ export class RhController {
   }
 
   @Get('paie/:id')
+  @RequireModule('PAIE')
   @UseGuards(RolesGuard)
   @Roles(...ROLES_PAIE)
   @ApiOperation({ summary: "Détail d'une fiche de paie" })
@@ -72,6 +77,7 @@ export class RhController {
   }
 
   @Post('paie')
+  @RequireModule('PAIE')
   @UseGuards(RolesGuard)
   @Roles(...ROLES_PAIE)
   @ApiOperation({ summary: 'Créer une fiche de paie' })
@@ -80,6 +86,7 @@ export class RhController {
   }
 
   @Patch('paie/:id/statut')
+  @RequireModule('PAIE')
   @UseGuards(RolesGuard)
   @Roles(...ROLES_PAIE)
   @ApiOperation({ summary: "Changer le statut d'une fiche de paie (brouillon/validée/payée)" })
@@ -92,6 +99,7 @@ export class RhController {
   }
 
   @Delete('paie/:id')
+  @RequireModule('PAIE')
   @UseGuards(RolesGuard)
   @Roles(...ROLES_PAIE)
   @ApiOperation({ summary: 'Supprimer une fiche de paie (si non payée)' })

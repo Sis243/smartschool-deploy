@@ -61,4 +61,12 @@ export class TenantController {
   toggle(@Param('id') id: string) {
     return this.tenantService.toggleActive(id);
   }
+
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
+  @Patch(':id/modules')
+  @ApiOperation({ summary: 'Activer/désactiver les modules payants d\'un établissement (super admin)' })
+  updateModules(@Param('id') id: string, @Body() body: { modules: string[] }) {
+    return this.tenantService.updateModules(id, body.modules);
+  }
 }

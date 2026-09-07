@@ -5,12 +5,15 @@ import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { ModuleActifGuard } from '../../common/guards/module-actif.guard';
+import { RequireModule } from '../../common/decorators/module.decorator';
 
 // Données sensibles (suivi comportemental, thérapies) : réservées à
 // l'administration et aux thérapeutes, y compris en lecture.
 @ApiTags('Autisme')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, ModuleActifGuard, RolesGuard)
+@RequireModule('AUTISME')
 @Roles('ADMIN', 'DIRECTEUR', 'THERAPEUTE')
 @Controller('autisme')
 export class AutismeController {

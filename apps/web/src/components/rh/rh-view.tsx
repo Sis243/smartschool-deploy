@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import api from '@/lib/api';
 import { getInitials } from '@/lib/utils';
 import { usePermissions } from '@/hooks/use-permissions';
+import { useModulesActifs } from '@/hooks/use-modules-actifs';
 
 const roleLabels: Record<string, string> = {
   ENSEIGNANT: 'Enseignant', DIRECTEUR: 'Directeur', COMPTABLE: 'Comptable',
@@ -501,7 +502,9 @@ function PaieTab() {
 
 // ─── Vue principale ───────────────────────────────────────────────────────────
 export function RhView() {
-  const { canGererRh, canGererPaie } = usePermissions();
+  const { canGererRh, canGererPaie: canGererPaieRole } = usePermissions();
+  const { estActif } = useModulesActifs();
+  const canGererPaie = canGererPaieRole && estActif('PAIE');
   const { data: personnel = [] } = useQuery({ queryKey: ['personnel'], queryFn: async () => (await api.get('/api/v1/rh/personnel')).data.data });
   const today = new Date().toISOString().split('T')[0];
   const { data: presences = [] } = useQuery({

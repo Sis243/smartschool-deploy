@@ -1,7 +1,8 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTenantDto } from './dto/tenant.dto';
+import { MODULES_ACTIVABLES } from '../../common/constants/modules';
 
 @Injectable()
 export class TenantService {
@@ -53,6 +54,7 @@ export class TenantService {
         schoolType: true,
         subscriptionPlan: true,
         isActive: true,
+        modulesActifs: true,
         createdAt: true,
         _count: { select: { users: true, eleves: true } },
       },
@@ -70,6 +72,19 @@ export class TenantService {
 
     if (!tenant) throw new NotFoundException('Établissement introuvable');
     return tenant;
+  }
+
+  async updateModules(tenantId: string, modules: string[]) {
+    const invalides = modules.filter((m) => !MODULES_ACTIVABLES.includes(m as any));
+    if (invalides.length > 0) {
+      throw new BadRequestException(`Module(s) inconnu(s) : ${invalides.join(', ')}`);
+    }
+    await this.findOne(tenantId);
+    return this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: { modulesActifs: modules },
+      select: { id: true, name: true, modulesActifs: true },
+    });
   }
 
   async toggleActive(id: string) {

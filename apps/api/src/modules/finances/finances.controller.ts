@@ -6,12 +6,15 @@ import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { ModuleActifGuard } from '../../common/guards/module-actif.guard';
+import { RequireModule } from '../../common/decorators/module.decorator';
 
 // Module financier réservé au personnel administratif/comptable : données
 // sensibles (recettes, impayés) en lecture comme en écriture.
 @ApiTags('Finances')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, ModuleActifGuard, RolesGuard)
+@RequireModule('FINANCES')
 @Roles('ADMIN', 'DIRECTEUR', 'COMPTABLE', 'SECRETAIRE')
 @Controller('finances')
 export class FinancesController {
