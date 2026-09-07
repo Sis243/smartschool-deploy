@@ -1,0 +1,876 @@
+// SmartSchool ERP SaaS - Schéma Prisma Complet
+// Smart IT Solution
+
+generator client {
+  provider      = "prisma-client-js"
+  // "native" pour le dev local, "rhel-openssl-3.0.x" pour les fonctions
+  // serverless Vercel (Amazon Linux) — sans ça le moteur Prisma compilé en
+  // local ne fonctionne pas une fois déployé.
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum SchoolType {
+  MATERNELLE
+  PRIMAIRE
+  SECONDAIRE
+  TECHNIQUE
+  SPECIALISE
+  THERAPEUTIQUE
+}
+
+enum SubscriptionPlan {
+  BASIC
+  STANDARD
+  PREMIUM
+  ENTERPRISE
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  DIRECTEUR
+  ENSEIGNANT
+  SECRETAIRE
+  COMPTABLE
+  THERAPEUTE
+  PARENT
+  CHAUFFEUR
+  BIBLIOTHECAIRE
+}
+
+enum StatutPaiement {
+  EN_ATTENTE
+  PARTIEL
+  PAYE
+  ANNULE
+  REMBOURSE
+}
+
+enum TypeFacture {
+  INSCRIPTION
+  MINERVAL
+  TRANSPORT
+  CANTINE
+  BIBLIOTHEQUE
+  AUTRE
+}
+
+enum ModePaiement {
+  ESPECE
+  MOBILE_MONEY
+  VIREMENT
+  CHEQUE
+}
+
+enum StatutPresence {
+  PRESENT
+  ABSENT
+  RETARD
+  EXCUSE
+}
+
+enum MethodePointage {
+  MANUEL
+  FACIAL
+  EMPREINTE
+  DISPOSITIF // pointeuse biométrique tierce (à intégrer une fois choisie)
+}
+
+enum JourSemaine {
+  LUNDI
+  MARDI
+  MERCREDI
+  JEUDI
+  VENDREDI
+  SAMEDI
+}
+
+enum StatutEmprunt {
+  EN_COURS
+  RETOURNE
+  PERDU
+}
+
+enum StatutNotification {
+  EN_COURS
+  ENVOYE
+  ECHEC
+}
+
+enum CanalNotification {
+  SMS
+  EMAIL
+  PUSH
+  WHATSAPP
+}
+
+enum StatutTherapie {
+  PLANIFIE
+  REALISE
+  ANNULE
+}
+
+enum TypeTherapie {
+  ORTHOPHONIE
+  PSYCHOMOTRICITE
+  ERGOTHERAPIE
+  ABA
+  PSYCHOLOGIE
+  AUTRE
+}
+
+// ============================================================
+// TENANT (ÉTABLISSEMENT)
+// ============================================================
+
+model Tenant {
+  id               String           @id @default(cuid())
+  name             String
+  slug             String           @unique
+  email            String           @unique
+  phone            String?
+  address          String?
+  logoUrl          String?
+  schoolType       SchoolType
+  subscriptionPlan SubscriptionPlan @default(BASIC)
+  subscriptionEnd  DateTime?
+  isActive         Boolean          @default(true)
+  settings         Json?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  // Relations
+  users              User[]
+  eleves             Eleve[]
+  classes            Classe[]
+  matieres           Matiere[]
+  horaires           Horaire[]
+  anneesScolaires    AnneeScolaire[]
+  periodes           Periode[]
+  examens            Examen[]
+  notes              Note[]
+  presences          Presence[]
+  presencesPersonnel PresencePersonnel[]
+  factures           Facture[]
+  paiements          Paiement[]
+  bus                Bus[]
+  itineraires        Itineraire[]
+  transportAbonnements TransportAbonnement[]
+  livres             Livre[]
+  emprunts           Emprunt[]
+  notifications      Notification[]
+  suiviComportementaux SuiviComportemental[]
+  therapies          Therapie[]
+  pictogrammes       Pictogramme[]
+  routines           Routine[]
+  documents          Document[]
+  demandesInscription DemandeInscription[]
+  preuvesPaiement     PreuvePaiement[]
+  notifParents        NotifParent[]
+
+  @@map("tenants")
+}
+
+// ============================================================
+// UTILISATEURS
+// ============================================================
+
+model User {
+  id           String   @id @default(cuid())
+  tenantId     String?
+  email        String   @unique
+  password     String
+  firstName    String
+  lastName     String
+  phone        String?
+  photoUrl     String?
+  role         UserRole @default(ENSEIGNANT)
+  isSuperAdmin Boolean  @default(false)
+  isActive     Boolean  @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  tenant              Tenant?               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  classesTitulaires   Classe[]              @relation("TitulaireClasse")
+  horaires            Horaire[]
+  notificationsEnvoyees NotificationDestinataire[]
+  presences           PresencePersonnel[]
+  therapiesRealisees  Therapie[]            @relation("TherapeuteTherapie")
+  suivisSupervisees   SuiviComportemental[] @relation("TheraeuteSuivi")
+  busConduits         Bus[]
+
+  @@map("users")
+}
+
+// ============================================================
+// PARENTS
+// ============================================================
+
+model Parent {
+  id           String   @id @default(cuid())
+  tenantId     String
+  nom          String
+  prenom       String
+  telephone    String
+  email        String?
+  adresse      String?
+  photoUrl     String?
+  createdAt    DateTime @default(now())
+
+  // Accès portail parent
+  pin          String?   // PIN hashé pour connexion
+  accessCode   String?   @unique // code 6 chars généré par l'école
+  portalActif  Boolean   @default(false)
+
+  eleves        Eleve[]
+  notifParents  NotifParent[]
+  preuves       PreuvePaiement[]
+
+  @@map("parents")
+}
+
+// ============================================================
+// ANNÉE SCOLAIRE & PÉRIODES
+// ============================================================
+
+model AnneeScolaire {
+  id        String   @id @default(cuid())
+  tenantId  String
+  libelle   String   // ex: "2024-2025"
+  dateDebut DateTime
+  dateFin   DateTime
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  periodes Periode[]
+  classes  Classe[]
+
+  @@map("annees_scolaires")
+}
+
+model Periode {
+  id              String   @id @default(cuid())
+  tenantId        String
+  anneeScolaireId String
+  libelle         String   // ex: "1er Trimestre", "Période 1"
+  dateDebut       DateTime
+  dateFin         DateTime
+  isActive        Boolean  @default(false)
+  ordre           Int
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  anneeScolaire AnneeScolaire @relation(fields: [anneeScolaireId], references: [id])
+  notes         Note[]
+  examens       Examen[]
+
+  @@map("periodes")
+}
+
+// ============================================================
+// CLASSES & MATIÈRES
+// ============================================================
+
+model Classe {
+  id              String     @id @default(cuid())
+  tenantId        String
+  anneeScolaireId String?
+  nom             String
+  niveau          String     // ex: "CP", "6ème", "3ème"
+  section         String?    // ex: "A", "B"
+  option          String?    // pour humanités
+  effectifMax     Int        @default(30)
+  titulaireId     String?
+  isActive        Boolean    @default(true)
+  createdAt       DateTime   @default(now())
+
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  anneeScolaire AnneeScolaire? @relation(fields: [anneeScolaireId], references: [id])
+  titulaire     User?          @relation("TitulaireClasse", fields: [titulaireId], references: [id])
+  eleves        Eleve[]
+  horaires      Horaire[]
+  examens       Examen[]
+
+  @@map("classes")
+}
+
+model Matiere {
+  id          String  @id @default(cuid())
+  tenantId    String
+  nom         String
+  code        String?
+  coefficient Int     @default(1)
+  heuresHebdo Float?
+  isActive    Boolean @default(true)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  horaires Horaire[]
+  notes    Note[]
+  examens  Examen[]
+
+  @@map("matieres")
+}
+
+model Horaire {
+  id           String     @id @default(cuid())
+  tenantId     String
+  classeId     String
+  matiereId    String
+  enseignantId String?
+  jourSemaine  JourSemaine
+  heureDebut   String     // ex: "08:00"
+  heureFin     String     // ex: "09:30"
+  salle        String?
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  classe     Classe   @relation(fields: [classeId], references: [id])
+  matiere    Matiere  @relation(fields: [matiereId], references: [id])
+  enseignant User?    @relation(fields: [enseignantId], references: [id])
+
+  @@map("horaires")
+}
+
+// ============================================================
+// ÉLÈVES
+// ============================================================
+
+model Eleve {
+  id           String    @id @default(cuid())
+  tenantId     String
+  matricule    String    @unique
+  nom          String
+  prenom       String
+  dateNaissance DateTime?
+  lieuNaissance String?
+  genre        String?
+  photoUrl     String?
+  qrCode       String?
+  faceDescriptor Json?   // empreinte faciale (vecteur 128 floats, face-api.js) calculée depuis photoUrl
+  classeId     String?
+  parentId     String?
+  adresse      String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  tenant        Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  classe        Classe?         @relation(fields: [classeId], references: [id])
+  parent        Parent?         @relation(fields: [parentId], references: [id])
+  dossierMedical DossierMedical?
+  presences     Presence[]
+  notes         Note[]
+  factures      Facture[]
+  paiements     Paiement[]
+  documents     Document[]
+  emprunts      Emprunt[]
+  transportAbonnements TransportAbonnement[]
+  suiviComportementaux SuiviComportemental[]
+  therapies     Therapie[]
+  routines      Routine[]
+  suiviMaternelle SuiviMaternelle[]
+
+  @@map("eleves")
+}
+
+model DossierMedical {
+  id              String   @id @default(cuid())
+  eleveId         String   @unique
+  groupeSanguin   String?
+  allergies       String[]
+  antecedents     String?
+  medicaments     String?
+  handicap        String?
+  notes           String?
+  updatedAt       DateTime @updatedAt
+
+  eleve Eleve @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+
+  @@map("dossiers_medicaux")
+}
+
+// ============================================================
+// PRÉSENCES
+// ============================================================
+
+model Presence {
+  id          String          @id @default(cuid())
+  tenantId    String
+  eleveId     String
+  date        DateTime        @db.Date
+  statut      StatutPresence  @default(PRESENT)
+  motif       String?
+  remarque    String?
+  heureArrivee DateTime?      // horodatage réel du pointage (ex: scan facial)
+  methode     MethodePointage @default(MANUEL)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eleve  Eleve  @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+
+  @@unique([eleveId, date])
+  @@map("presences")
+}
+
+model PresencePersonnel {
+  id          String          @id @default(cuid())
+  tenantId    String
+  userId      String
+  date        DateTime        @db.Date
+  statut      StatutPresence  @default(PRESENT)
+  motif       String?
+  heureArrivee DateTime?      // horodatage réel du pointage (ex: future pointeuse biométrique)
+  methode     MethodePointage @default(MANUEL)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@map("presences_personnel")
+}
+
+// ============================================================
+// NOTES & EXAMENS
+// ============================================================
+
+model Examen {
+  id        String   @id @default(cuid())
+  tenantId  String
+  classeId  String
+  matiereId String
+  periodeId String?
+  libelle   String
+  date      DateTime
+  duree     Int?     // en minutes
+  surNote   Float    @default(100)
+  createdAt DateTime @default(now())
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  classe   Classe   @relation(fields: [classeId], references: [id])
+  matiere  Matiere  @relation(fields: [matiereId], references: [id])
+  periode  Periode? @relation(fields: [periodeId], references: [id])
+
+  @@map("examens")
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  tenantId  String
+  eleveId   String
+  matiereId String
+  periodeId String
+  valeur    Float
+  surNote   Float    @default(100)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant   Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eleve    Eleve   @relation(fields: [eleveId], references: [id], onDelete: Cascade)
+  matiere  Matiere @relation(fields: [matiereId], references: [id])
+  periode  Periode @relation(fields: [periodeId], references: [id])
+
+  @@unique([eleveId, matiereId, periodeId])
+  @@map("notes")
+}
+
+// ============================================================
+// FINANCES
+// ============================================================
+
+model Facture {
+  id          String         @id @default(cuid())
+  tenantId    String
+  eleveId     String
+  type        TypeFacture
+  libelle     String
+  montant     Float
+  montantPaye Float          @default(0)
+  montantDu   Float
+  statut      StatutPaiement @default(EN_ATTENTE)
+  echeance    DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eleve     Eleve            @relation(fields: [eleveId], references: [id])
+  paiements Paiement[]
+  preuves   PreuvePaiement[]
+
+  @@map("factures")
+}
+
+model Paiement {
+  id           String         @id @default(cuid())
+  tenantId     String
+  factureId    String
+  eleveId      String
+  montant      Float
+  modePaiement ModePaiement
+  reference    String?        // référence Mobile Money / virement
+  statut       StatutPaiement @default(PAYE)
+  recu         String?        // numéro du reçu
+  notes        String?
+  createdAt    DateTime       @default(now())
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  facture  Facture  @relation(fields: [factureId], references: [id])
+  eleve    Eleve    @relation(fields: [eleveId], references: [id])
+
+  @@map("paiements")
+}
+
+// ============================================================
+// TRANSPORT
+// ============================================================
+
+model Bus {
+  id            String   @id @default(cuid())
+  tenantId      String
+  immatriculation String @unique
+  marque        String?
+  capacite      Int
+  chauffeurId   String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  tenant      Tenant                @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  chauffeur   User?                 @relation(fields: [chauffeurId], references: [id])
+  itineraires Itineraire[]
+  abonnes     TransportAbonnement[]
+
+  @@map("bus")
+}
+
+model Itineraire {
+  id        String  @id @default(cuid())
+  tenantId  String
+  busId     String
+  arret     String
+  ordre     Int
+  latitude  Float?
+  longitude Float?
+  heurePrevue String?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  bus    Bus    @relation(fields: [busId], references: [id])
+
+  @@map("itineraires")
+}
+
+model TransportAbonnement {
+  id       String  @id @default(cuid())
+  tenantId String
+  eleveId  String
+  busId    String
+  isActive Boolean @default(true)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eleve  Eleve  @relation(fields: [eleveId], references: [id])
+  bus    Bus    @relation(fields: [busId], references: [id])
+
+  @@unique([eleveId, busId])
+  @@map("transport_abonnements")
+}
+
+// ============================================================
+// BIBLIOTHÈQUE
+// ============================================================
+
+model Livre {
+  id                 String @id @default(cuid())
+  tenantId           String
+  titre              String
+  auteur             String?
+  isbn               String?
+  editeur            String?
+  anneeEdition       Int?
+  categorie          String?
+  quantiteTotale     Int    @default(1)
+  quantiteDisponible Int    @default(1)
+  couvertureUrl      String?
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  emprunts Emprunt[]
+
+  @@map("livres")
+}
+
+model Emprunt {
+  id                  String        @id @default(cuid())
+  tenantId            String
+  livreId             String
+  eleveId             String
+  dateEmprunt         DateTime      @default(now())
+  dateRetourPrevue    DateTime
+  dateRetourEffective DateTime?
+  statut              StatutEmprunt @default(EN_COURS)
+  penalite            Float?        @default(0)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  livre  Livre  @relation(fields: [livreId], references: [id])
+  eleve  Eleve  @relation(fields: [eleveId], references: [id])
+
+  @@map("emprunts")
+}
+
+// ============================================================
+// COMMUNICATION & NOTIFICATIONS
+// ============================================================
+
+model Notification {
+  id        String             @id @default(cuid())
+  tenantId  String
+  titre     String
+  contenu   String
+  statut    StatutNotification @default(EN_COURS)
+  createdAt DateTime           @default(now())
+
+  tenant        Tenant                     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  destinataires NotificationDestinataire[]
+
+  @@map("notifications")
+}
+
+model NotificationDestinataire {
+  id             String            @id @default(cuid())
+  notificationId String
+  userId         String
+  canal          CanalNotification
+  statut         String            @default("EN_ATTENTE")
+  envoyeAt       DateTime?
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id])
+
+  @@map("notification_destinataires")
+}
+
+// ============================================================
+// MODULE AUTISME
+// ============================================================
+
+model SuiviComportemental {
+  id                String   @id @default(cuid())
+  tenantId          String
+  eleveId           String
+  therapeuteId      String?
+  date              DateTime @db.Date
+  humeur            String?  // CALME, AGITE, ANXIEUX, HEUREUX, TRISTE
+  comportements     String[]
+  activitesRealisees String[]
+  observations      String?
+  createdAt         DateTime @default(now())
+
+  tenant      Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eleve       Eleve  @relation(fields: [eleveId], references: [id])
+  therapeute  User?  @relation("TheraeuteSuivi", fields: [therapeuteId], references: [id])
+
+  @@map("suivis_comportementaux")
+}
+
+model Therapie {
+  id           String         @id @default(cuid())
+  tenantId     String
+  eleveId      String
+  therapeuteId String?
+  type         TypeTherapie
+  dateSeance   DateTime
+  duree        Int?           // en minutes
+  statut       StatutTherapie @default(PLANIFIE)
+  objectifs    String?
+  compteRendu  String?
+  createdAt    DateTime       @default(now())
+
+  tenant     Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eleve      Eleve  @relation(fields: [eleveId], references: [id])
+  therapeute User?  @relation("TherapeuteTherapie", fields: [therapeuteId], references: [id])
+
+  @@map("therapies")
+}
+
+model Pictogramme {
+  id        String  @id @default(cuid())
+  tenantId  String  // "GLOBAL" pour les pictogrammes partagés
+  label     String
+  imageUrl  String
+  categorie String? // ACTIONS, EMOTIONS, ALIMENTS, OBJETS, LIEUX
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("pictogrammes")
+}
+
+model Routine {
+  id       String   @id @default(cuid())
+  tenantId String
+  eleveId  String
+  nom      String
+  isActive Boolean  @default(true)
+
+  tenant Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eleve  Eleve          @relation(fields: [eleveId], references: [id])
+  etapes EtapeRoutine[]
+
+  @@map("routines")
+}
+
+model EtapeRoutine {
+  id            String  @id @default(cuid())
+  routineId     String
+  ordre         Int
+  description   String
+  pictogrammeUrl String?
+  duree         Int?    // en secondes
+
+  routine Routine @relation(fields: [routineId], references: [id], onDelete: Cascade)
+
+  @@map("etapes_routines")
+}
+
+// ============================================================
+// MODULE MATERNELLE
+// ============================================================
+
+model SuiviMaternelle {
+  id          String   @id @default(cuid())
+  tenantId    String
+  eleveId     String
+  date        DateTime @db.Date
+  aMangeQuoi  String?
+  aFaitSieste Boolean  @default(false)
+  dureesSieste Int?    // minutes
+  comportement String?
+  activites   String[]
+  observations String?
+
+  eleve Eleve @relation(fields: [eleveId], references: [id])
+
+  @@map("suivis_maternelle")
+}
+
+// ============================================================
+// DOCUMENTS
+// ============================================================
+
+model Document {
+  id        String   @id @default(cuid())
+  tenantId  String
+  eleveId   String?
+  nom       String
+  type      String   // CERTIFICAT, ATTESTATION, BULLETIN, AUTRE
+  url       String
+  createdAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  eleve  Eleve? @relation(fields: [eleveId], references: [id])
+
+  @@map("documents")
+}
+
+// ============================================================
+// INSCRIPTIONS EN LIGNE
+// ============================================================
+
+enum StatutDemande {
+  EN_ATTENTE
+  APPROUVEE
+  REJETEE
+}
+
+enum StatutPreuve {
+  EN_ATTENTE
+  VALIDE
+  REJETE
+}
+
+model DemandeInscription {
+  id        String         @id @default(cuid())
+  tenantId  String
+  statut    StatutDemande  @default(EN_ATTENTE)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  // Infos enfant
+  prenomEnfant     String
+  nomEnfant        String
+  dateNaissance    DateTime?
+  lieuNaissance    String?
+  genre            String?
+  classeVisee      String?   // ex: "6ème", "CP"
+  anneeScolaire    String?   // ex: "2025-2026"
+
+  // Infos parent/tuteur
+  nomParent        String
+  prenomParent     String
+  telephone        String
+  email            String?
+  adresse          String?
+  lienFiliation    String?   // PERE, MERE, TUTEUR
+
+  // Traitement
+  noteSecretaire   String?
+  eleveCreId       String?   // ID de l'élève créé après approbation
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("demandes_inscription")
+}
+
+// ============================================================
+// PREUVES DE PAIEMENT (virement / mobile money parent)
+// ============================================================
+
+model PreuvePaiement {
+  id           String       @id @default(cuid())
+  tenantId     String
+  factureId    String
+  parentId     String?
+  montant      Float
+  modePaiement ModePaiement
+  reference    String?      // référence Mobile Money ou virement
+  fichierUrl   String?      // reçu uploadé (virement bancaire)
+  fichierNom   String?
+  statut       StatutPreuve @default(EN_ATTENTE)
+  noteAdmin    String?
+  validePar    String?      // userId admin
+  valideAt     DateTime?
+  paiementId   String?      // Paiement créé après validation
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  tenant  Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  facture Facture @relation(fields: [factureId], references: [id])
+  parent  Parent? @relation(fields: [parentId], references: [id])
+
+  @@map("preuves_paiement")
+}
+
+// ============================================================
+// NOTIFICATIONS PARENT (portail parent + PWA)
+// ============================================================
+
+model NotifParent {
+  id        String            @id @default(cuid())
+  tenantId  String
+  parentId  String
+  canal     CanalNotification
+  titre     String
+  message   String
+  statut    String            @default("SIMULE")  // SIMULE | ENVOYE | ECHEC
+  lu        Boolean           @default(false)
+  createdAt DateTime          @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  parent Parent @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  @@map("notifs_parent")
+}

@@ -1,0 +1,126 @@
+version: '3.9'
+
+services:
+  # ============================================================
+  # BASE DE DONNÉES
+  # ============================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: smartschool-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: smartschool_db
+      POSTGRES_USER: smartschool
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smartschool_secret_2024}
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - smartschool-network
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U smartschool -d smartschool_db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================================
+  # CACHE REDIS
+  # ============================================================
+  redis:
+    image: redis:7-alpine
+    container_name: smartschool-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-redis_secret_2024}
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    networks:
+      - smartschool-network
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ============================================================
+  # API NESTJS
+  # ============================================================
+  api:
+    build:
+      context: ./apps/api
+      dockerfile: Dockerfile
+    container_name: smartschool-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      DATABASE_URL: postgresql://smartschool:${POSTGRES_PASSWORD:-smartschool_secret_2024}@postgres:5432/smartschool_db
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-redis_secret_2024}
+      JWT_SECRET: ${JWT_SECRET:-change_this_in_production_jwt_secret}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_this_in_production_refresh_secret}
+      BASE_DOMAIN: ${BASE_DOMAIN:-smartschool.cd}
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+    ports:
+      - '3001:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - api_uploads:/app/uploads
+    networks:
+      - smartschool-network
+
+  # ============================================================
+  # FRONTEND NEXT.JS
+  # ============================================================
+  web:
+    build:
+      context: ./apps/web
+      dockerfile: Dockerfile
+    container_name: smartschool-web
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://api:3001}
+    ports:
+      - '3000:3000'
+    depends_on:
+      - api
+    networks:
+      - smartschool-network
+
+  # ============================================================
+  # NGINX REVERSE PROXY
+  # ============================================================
+  nginx:
+    image: nginx:alpine
+    container_name: smartschool-nginx
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      - nginx_certs:/etc/nginx/certs
+    depends_on:
+      - api
+      - web
+    networks:
+      - smartschool-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  api_uploads:
+  nginx_certs:
+
+networks:
+  smartschool-network:
+    driver: bridge
