@@ -2,15 +2,33 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import {
   GraduationCap, Users, BookOpen, DollarSign, UserCog, MessageSquare, Bus, Library,
-  Brain, Heart, ScanFace, ShieldCheck, Smartphone, CheckCircle2, ArrowRight,
+  Brain, Heart, ScanFace, ShieldCheck, Smartphone, CheckCircle2, ArrowRight, Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { SchoolyardIllustration } from '@/components/landing/schoolyard-illustration';
+import { ClassroomIllustration } from '@/components/landing/classroom-illustration';
+import { AnimatedHeading } from '@/components/landing/animated-heading';
+import { PricingPopup } from '@/components/landing/pricing-popup';
+import { PRIX_MENSUEL_USD, PRIX_ANNUEL_USD } from '@/lib/abonnement';
 
 // Pas d'auto-inscription publique : chaque établissement est créé par la
 // super administration après contact commercial (voir /super-admin).
 const WHATSAPP_CONTACT = 'https://wa.me/243979710633';
+
+const OFFRES = [
+  {
+    nom: 'Mensuel', prix: `${PRIX_MENSUEL_USD}$`, periode: '/ mois', avantage: null,
+    points: ['Tous les modules inclus', 'Support par WhatsApp', 'Résiliable à tout moment'],
+  },
+  {
+    nom: 'Annuel', prix: `${PRIX_ANNUEL_USD}$`, periode: '/ an', avantage: '-30%', vedette: true,
+    points: ['Tous les modules inclus', `Économisez ${PRIX_MENSUEL_USD * 12 - PRIX_ANNUEL_USD}$ sur l'année`, 'Support prioritaire'],
+  },
+  {
+    nom: 'Licence à vie', prix: 'Sur devis', periode: '', avantage: null,
+    points: ['Accès permanent', 'Aucun renouvellement', 'Idéal pour les grands réseaux scolaires'],
+  },
+] as const;
 
 export const metadata: Metadata = {
   title: 'SmartSchool ERP — Plateforme de gestion scolaire',
@@ -41,6 +59,7 @@ const PUBLICS = [
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100">
+      <PricingPopup />
       {/* Nav */}
       <header className="border-b border-slate-800/80 sticky top-0 z-20 bg-slate-950/90 backdrop-blur">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
@@ -65,9 +84,7 @@ export default function LandingPage() {
           <CheckCircle2 className="w-3.5 h-3.5" />
           Plateforme multi-établissements
         </div>
-        <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-white max-w-3xl mx-auto leading-tight">
-          La gestion scolaire, <span className="text-blue-500">complète et centralisée</span>
-        </h1>
+        <AnimatedHeading />
         <p className="mt-6 text-lg text-slate-400 max-w-2xl mx-auto">
           Élèves, notes, finances, présences, communication avec les parents — tout ce dont votre établissement
           a besoin, dans une seule plateforme pensée aussi pour les écoles accueillant des enfants à besoins particuliers.
@@ -82,7 +99,7 @@ export default function LandingPage() {
         </div>
 
         <div className="mt-14">
-          <SchoolyardIllustration />
+          <ClassroomIllustration />
         </div>
       </section>
 
@@ -124,6 +141,54 @@ export default function LandingPage() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      </section>
+
+      {/* Tarifs */}
+      <section className="border-t border-slate-800/80 bg-slate-900/40">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-20">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white text-center">Une tarification simple, par établissement</h2>
+          <p className="text-slate-400 text-center mt-2 max-w-xl mx-auto">
+            Tous les modules sont inclus, quel que soit le plan choisi.
+          </p>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mt-10 items-stretch">
+            {OFFRES.map((o) => (
+              <Card
+                key={o.nom}
+                className={
+                  'vedette' in o && o.vedette
+                    ? 'bg-gradient-to-b from-blue-600/20 to-slate-900 border-blue-500/50 relative shadow-lg shadow-blue-950/40'
+                    : 'bg-slate-900 border-slate-800'
+                }
+              >
+                {'vedette' in o && o.vedette && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-blue-600 text-white text-[11px] font-semibold">
+                    Recommandé · {o.avantage}
+                  </div>
+                )}
+                <CardContent className="p-6 flex flex-col h-full">
+                  <h3 className="font-semibold text-white">{o.nom}</h3>
+                  <div className="mt-3 flex items-baseline gap-1">
+                    <span className="text-3xl font-bold text-white">{o.prix}</span>
+                    {o.periode && <span className="text-slate-400 text-sm">{o.periode}</span>}
+                  </div>
+                  <ul className="mt-5 space-y-2.5 flex-1">
+                    {o.points.map((pt) => (
+                      <li key={pt} className="flex items-start gap-2 text-sm text-slate-400">
+                        <Check className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />{pt}
+                      </li>
+                    ))}
+                  </ul>
+                  <Button
+                    asChild
+                    className={`mt-6 w-full gap-2 ${'vedette' in o && o.vedette ? 'bg-blue-600 hover:bg-blue-500' : 'bg-slate-800 hover:bg-slate-700'}`}
+                  >
+                    <Link href={WHATSAPP_CONTACT} target="_blank" rel="noopener noreferrer">Nous contacter<ArrowRight className="w-4 h-4" /></Link>
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       </section>
 
