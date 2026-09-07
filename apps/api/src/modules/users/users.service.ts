@@ -1,11 +1,16 @@
 import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateUserDto, UpdateUserDto } from './dto/user.dto';
+import { AuthService } from '../auth/auth.service';
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly authService: AuthService,
+  ) {}
 
   async findAll(tenantId: string) {
     return this.prisma.user.findMany({
@@ -48,8 +53,10 @@ export class UsersService {
     const existing = await this.prisma.user.findFirst({ where: { email: data.email } });
     if (existing) throw new ConflictException('Un compte avec cet email existe déjà');
 
-    const hashed = await bcrypt.hash(data.password, 12);
-    return this.prisma.user.create({
+    // Mot de passe initial inconnu de tous — la personne choisit le sien via
+    // le lien d'invitation envoyé par e-mail, jamais transmis à la main.
+    const hashed = await bcrypt.hash(randomBytes(24).toString('hex'), 12);
+    const user = await this.prisma.user.create({
       data: {
         tenantId,
         firstName: data.firstName,
@@ -61,6 +68,9 @@ export class UsersService {
       },
       select: { id: true, firstName: true, lastName: true, email: true, phone: true, role: true, isActive: true },
     });
+
+    const invitationEnvoyee = await this.authService.envoyerInvitation(user.id);
+    return { ...user, invitationEnvoyee };
   }
 
   async update(

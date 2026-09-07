@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Building2, Users, GraduationCap, Settings2, Plus } from 'lucide-react';
+import { Building2, Users, GraduationCap, Settings2, Plus, CreditCard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import api from '@/lib/api';
 import { MODULES_ACTIVABLES, MODULES_LABELS, ModuleCle } from '@/lib/modules';
+import { PRIX_MENSUEL_USD, PRIX_ANNUEL_USD } from '@/lib/abonnement';
 
 const SUBSCRIPTION_PLANS = [
   { value: 'BASIC', label: 'Basic' },
@@ -165,9 +166,68 @@ function ModulesDialog({ tenant, onClose }: { tenant: any; onClose: () => void }
   );
 }
 
+const OFFRES_CYCLE = [
+  { value: 'MENSUEL', label: 'Mensuel', prix: `${PRIX_MENSUEL_USD}$ / mois` },
+  { value: 'ANNUEL', label: 'Annuel', prix: `${PRIX_ANNUEL_USD}$ / an (30% de remise)` },
+  { value: 'A_VIE', label: 'Licence à vie', prix: 'Contactez-nous' },
+] as const;
+
+function AbonnementDialog({ tenant, onClose }: { tenant: any; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [cycle, setCycle] = useState<'MENSUEL' | 'ANNUEL' | 'A_VIE'>(tenant?.subscriptionCycle ?? 'MENSUEL');
+  const [dateDebut, setDateDebut] = useState('');
+
+  const mutation = useMutation({
+    mutationFn: () => api.patch(`/api/v1/tenants/${tenant.id}/abonnement`, { cycle, dateDebut: dateDebut || undefined }),
+    onSuccess: () => {
+      toast.success('Abonnement activé');
+      qc.invalidateQueries({ queryKey: ['tenants-super-admin'] });
+      onClose();
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erreur'),
+  });
+
+  return (
+    <Dialog open={!!tenant} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Abonnement — {tenant?.name}</DialogTitle></DialogHeader>
+        <div className="space-y-3 py-2">
+          {OFFRES_CYCLE.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              onClick={() => setCycle(o.value)}
+              className={`w-full text-left border rounded-lg p-3 transition-colors ${cycle === o.value ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30' : 'border-border hover:border-blue-300'}`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-medium text-sm">{o.label}</span>
+                <span className="text-sm text-blue-600 font-semibold">{o.prix}</span>
+              </div>
+            </button>
+          ))}
+          {cycle !== 'A_VIE' && (
+            <div className="space-y-1.5 pt-2">
+              <Label>Date de départ (optionnel)</Label>
+              <Input type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} />
+              <p className="text-xs text-muted-foreground">Laissez vide pour démarrer aujourd&apos;hui (ou prolonger depuis la date d&apos;expiration actuelle si elle est encore valide).</p>
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Annuler</Button>
+          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="bg-blue-600 hover:bg-blue-500">
+            {mutation.isPending ? 'Activation...' : 'Activer'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function SuperAdminView() {
   const qc = useQueryClient();
   const [tenantModules, setTenantModules] = useState<any | null>(null);
+  const [tenantAbonnement, setTenantAbonnement] = useState<any | null>(null);
   const [nouvelleEcoleOpen, setNouvelleEcoleOpen] = useState(false);
 
   const { data: tenants = [], isLoading } = useQuery({
@@ -188,6 +248,7 @@ export function SuperAdminView() {
   return (
     <div className="space-y-6">
       {tenantModules && <ModulesDialog tenant={tenantModules} onClose={() => setTenantModules(null)} />}
+      {tenantAbonnement && <AbonnementDialog tenant={tenantAbonnement} onClose={() => setTenantAbonnement(null)} />}
       <NouvelleEcoleDialog open={nouvelleEcoleOpen} onClose={() => setNouvelleEcoleOpen(false)} />
       <div className="flex items-center justify-between">
         <div>
@@ -220,8 +281,8 @@ export function SuperAdminView() {
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
-                <TableHead>École</TableHead><TableHead>Type</TableHead>
-                <TableHead>Modules actifs</TableHead><TableHead>Statut</TableHead><TableHead></TableHead>
+                <TableHead>École</TableHead>
+                <TableHead>Modules actifs</TableHead><TableHead>Abonnement</TableHead><TableHead>Statut</TableHead><TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -229,36 +290,56 @@ export function SuperAdminView() {
                 <TableRow key={i}>{Array.from({ length: 5 }).map((__, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
               )) : tenants.length === 0 ? (
                 <TableRow><TableCell colSpan={5} className="py-12 text-center text-muted-foreground">Aucun établissement</TableCell></TableRow>
-              ) : tenants.map((t: any) => (
-                <TableRow key={t.id}>
-                  <TableCell>
-                    <p className="text-sm font-medium">{t.name}</p>
-                    <p className="text-xs text-muted-foreground">{t.slug}</p>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{t.schoolType}</TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap gap-1 max-w-xs">
-                      {(t.modulesActifs ?? []).length === 0 ? (
-                        <span className="text-xs text-muted-foreground">Aucun</span>
-                      ) : t.modulesActifs.map((m: ModuleCle) => (
-                        <Badge key={m} variant="secondary" className="text-[10px]">{MODULES_LABELS[m] ?? m}</Badge>
-                      ))}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <button onClick={() => toggleActif.mutate(t.id)} className="cursor-pointer">
-                      <Badge variant={t.isActive ? 'default' : 'destructive'} className="text-xs">
-                        {t.isActive ? 'Actif' : 'Suspendu'}
-                      </Badge>
-                    </button>
-                  </TableCell>
-                  <TableCell>
-                    <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs" onClick={() => setTenantModules(t)}>
-                      <Settings2 className="w-3.5 h-3.5" />Modules
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
+              ) : tenants.map((t: any) => {
+                const fin = t.subscriptionEnd ? new Date(t.subscriptionEnd) : null;
+                const joursRestants = fin ? Math.ceil((fin.getTime() - Date.now()) / 86_400_000) : null;
+                let abonnementBadge: { label: string; cls: string };
+                if (t.subscriptionCycle === 'A_VIE') abonnementBadge = { label: 'À vie', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' };
+                else if (!fin) abonnementBadge = { label: 'Non activé', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' };
+                else if (joursRestants! < 0) abonnementBadge = { label: 'Expiré', cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' };
+                else if (joursRestants! <= 7) abonnementBadge = { label: `${joursRestants}j restants`, cls: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' };
+                else abonnementBadge = { label: `Actif (${t.subscriptionCycle === 'MENSUEL' ? 'mensuel' : 'annuel'})`, cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' };
+
+                return (
+                  <TableRow key={t.id}>
+                    <TableCell>
+                      <p className="text-sm font-medium">{t.name}</p>
+                      <p className="text-xs text-muted-foreground">{t.slug}</p>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1 max-w-xs">
+                        {(t.modulesActifs ?? []).length === 0 ? (
+                          <span className="text-xs text-muted-foreground">Aucun</span>
+                        ) : t.modulesActifs.map((m: ModuleCle) => (
+                          <Badge key={m} variant="secondary" className="text-[10px]">{MODULES_LABELS[m] ?? m}</Badge>
+                        ))}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <button onClick={() => setTenantAbonnement(t)} className="cursor-pointer">
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${abonnementBadge.cls}`}>{abonnementBadge.label}</span>
+                      </button>
+                    </TableCell>
+                    <TableCell>
+                      <button onClick={() => toggleActif.mutate(t.id)} className="cursor-pointer">
+                        <Badge variant={t.isActive ? 'default' : 'destructive'} className="text-xs">
+                          {t.isActive ? 'Actif' : 'Suspendu'}
+                        </Badge>
+                      </button>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex gap-1.5">
+                        <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs" onClick={() => setTenantModules(t)}>
+                          <Settings2 className="w-3.5 h-3.5" />Modules
+                        </Button>
+                        <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs" onClick={() => setTenantAbonnement(t)}>
+                          <CreditCard className="w-3.5 h-3.5" />Abonnement
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>

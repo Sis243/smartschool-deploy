@@ -18,7 +18,7 @@ export class StorageService {
     this.client = url && serviceKey ? createClient(url, serviceKey) : null;
   }
 
-  async upload(dossier: 'preuves' | 'eleves', file: Express.Multer.File): Promise<string> {
+  async upload(dossier: 'preuves' | 'eleves' | 'logos', file: Express.Multer.File): Promise<string> {
     if (!this.client) {
       throw new InternalServerErrorException(
         'Stockage non configuré (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY manquants)',

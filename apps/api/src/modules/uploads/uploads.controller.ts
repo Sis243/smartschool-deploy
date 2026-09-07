@@ -65,4 +65,22 @@ export class UploadsController {
     const url = await this.storageService.upload('eleves', file);
     return { url, nom: file.originalname, taille: file.size };
   }
+
+  @Post('logo-ecole')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'DIRECTEUR')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 3 * 1024 * 1024 }, // 3 MB
+      fileFilter: imageFilter(['.jpg', '.jpeg', '.png', '.webp', '.svg']),
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  async uploadLogoEcole(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('Aucun fichier reçu');
+    const url = await this.storageService.upload('logos', file);
+    return { url, nom: file.originalname, taille: file.size };
+  }
 }

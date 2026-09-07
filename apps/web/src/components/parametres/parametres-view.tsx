@@ -2,7 +2,9 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { User, Lock, Building2, Users, Plus, Shield, Eye, EyeOff, Check, X } from 'lucide-react';
+import { User, Lock, Building2, Users, Plus, Shield, Eye, EyeOff, Check, X, ImageUp, CreditCard } from 'lucide-react';
+import { useRef } from 'react';
+import { usePermissions } from '@/hooks/use-permissions';
 import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -199,8 +201,60 @@ function SecuriteTab() {
   );
 }
 
+// ─── Carte Abonnement (lecture seule) ──────────────────────────────────────────
+function AbonnementCard({ tenant }: { tenant: any }) {
+  if (!tenant) return null;
+  const cycle = tenant.subscriptionCycle ?? 'MENSUEL';
+  const fin = tenant.subscriptionEnd ? new Date(tenant.subscriptionEnd) : null;
+  const joursRestants = fin ? Math.ceil((fin.getTime() - Date.now()) / 86_400_000) : null;
+
+  let statut: { label: string; cls: string };
+  if (!tenant.isActive) statut = { label: 'Suspendu', cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' };
+  else if (cycle === 'A_VIE') statut = { label: 'Licence à vie', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' };
+  else if (!fin) statut = { label: 'Non activé', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' };
+  else if (joursRestants! < 0) statut = { label: 'Expiré', cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' };
+  else if (joursRestants! <= 7) statut = { label: `Expire dans ${joursRestants}j`, cls: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' };
+  else statut = { label: 'Actif', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' };
+
+  return (
+    <Card className="border-border/50 shadow-sm max-w-lg">
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2"><CreditCard className="w-4 h-4" />Abonnement</CardTitle>
+        <CardDescription>Licence SmartSchool ERP de votre établissement</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">Formule</span>
+          <Badge variant="secondary">{cycle === 'MENSUEL' ? 'Mensuel' : cycle === 'ANNUEL' ? 'Annuel' : 'Licence à vie'}</Badge>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-muted-foreground">Statut</span>
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statut.cls}`}>{statut.label}</span>
+        </div>
+        {fin && cycle !== 'A_VIE' && (
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">{joursRestants! < 0 ? 'Expiré le' : 'Expire le'}</span>
+            <span className="text-sm font-medium">{fin.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}</span>
+          </div>
+        )}
+        {(joursRestants !== null && joursRestants < 0) && (
+          <p className="text-xs text-red-500 pt-1">Abonnement expiré — l&apos;accès sera bloqué. Contactez SmartSchool ERP pour renouveler.</p>
+        )}
+        {!fin && cycle !== 'A_VIE' && (
+          <p className="text-xs text-muted-foreground pt-1">Votre licence n&apos;a pas encore été activée par SmartSchool ERP.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Onglet École ─────────────────────────────────────────────────────────────
 function EcoleTab() {
+  const { isSuperAdmin, role } = usePermissions();
+  const peutModifier = isSuperAdmin || ['ADMIN', 'DIRECTEUR'].includes(role ?? '');
+  const qc = useQueryClient();
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
   const { data: tenant, isLoading } = useQuery({
     queryKey: ['my-tenant'],
     queryFn: async () => (await api.get('/api/v1/tenants/me')).data.data,
@@ -215,35 +269,60 @@ function EcoleTab() {
 
   const mutation = useMutation({
     mutationFn: () => api.put('/api/v1/tenants/me', form),
-    onSuccess: () => toast.success('Paramètres de l\'école sauvegardés'),
+    onSuccess: () => { toast.success('Paramètres de l\'école sauvegardés'); qc.invalidateQueries({ queryKey: ['my-tenant'] }); },
     onError: () => toast.error('Erreur lors de la sauvegarde'),
+  });
+
+  const logoMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const fd = new FormData();
+      fd.append('file', file);
+      const up = await api.post('/api/v1/uploads/logo-ecole', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      return api.put('/api/v1/tenants/me', { logoUrl: up.data.data.url });
+    },
+    onSuccess: () => { toast.success('Logo mis à jour'); qc.invalidateQueries({ queryKey: ['my-tenant'] }); },
+    onError: () => toast.error('Erreur lors du téléversement du logo'),
   });
 
   if (isLoading) return <Skeleton className="h-64 w-full max-w-lg" />;
 
   return (
-    <div className="max-w-lg">
-      <Card className="border-border/50 shadow-sm">
+    <div className="space-y-6">
+      <Card className="border-border/50 shadow-sm max-w-lg">
         <CardHeader>
           <CardTitle className="text-base">Informations de l'établissement</CardTitle>
           <CardDescription>Ces informations apparaissent sur les documents officiels</CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
           <div className="flex items-center gap-3 p-3 bg-muted/40 rounded-lg">
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Building2 className="w-5 h-5 text-white" />
-            </div>
-            <div>
+            {t?.logoUrl ? (
+              <img src={t.logoUrl} alt="Logo" className="w-10 h-10 rounded-lg object-cover bg-white" />
+            ) : (
+              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                <Building2 className="w-5 h-5 text-white" />
+              </div>
+            )}
+            <div className="flex-1">
               <p className="font-semibold">{t?.name}</p>
               <p className="text-xs text-muted-foreground">Slug : <code className="bg-muted px-1 rounded">{t?.slug}</code></p>
               <Badge variant="secondary" className="text-xs mt-0.5">{t?.subscriptionPlan} • {t?.schoolType}</Badge>
             </div>
+            {peutModifier && (
+              <>
+                <input
+                  ref={logoInputRef} type="file" accept="image/*" className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) logoMutation.mutate(f); }}
+                />
+                <Button size="sm" variant="outline" className="gap-1.5" disabled={logoMutation.isPending} onClick={() => logoInputRef.current?.click()}>
+                  <ImageUp className="w-3.5 h-3.5" />{logoMutation.isPending ? 'Envoi...' : 'Logo'}
+                </Button>
+              </>
+            )}
           </div>
 
-          <Separator />
-
-          {form && (
+          {peutModifier && form && (
             <>
+              <Separator />
               <div className="space-y-1.5">
                 <Label>Nom de l'établissement</Label>
                 <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
@@ -269,6 +348,8 @@ function EcoleTab() {
           )}
         </CardContent>
       </Card>
+
+      <AbonnementCard tenant={t} />
     </div>
   );
 }
@@ -276,21 +357,26 @@ function EcoleTab() {
 // ─── Dialog Nouvel utilisateur ────────────────────────────────────────────────
 function NouvelUtilisateurDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', role: '', password: '' });
-  const [showPwd, setShowPwd] = useState(false);
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', role: '' });
 
   const mutation = useMutation({
     mutationFn: () => api.post('/api/v1/users', form),
-    onSuccess: () => {
-      toast.success('Utilisateur créé');
+    onSuccess: (res: any) => {
+      const invitationEnvoyee = res?.data?.data?.invitationEnvoyee;
+      toast.success(
+        invitationEnvoyee
+          ? `Utilisateur créé — un e-mail d'activation a été envoyé à ${form.email}`
+          : "Utilisateur créé — l'e-mail d'activation n'a pas pu être envoyé, réessayez depuis \"Mot de passe oublié\"",
+        { duration: 6000 },
+      );
       qc.invalidateQueries({ queryKey: ['users'] });
       onClose();
-      setForm({ firstName: '', lastName: '', email: '', phone: '', role: '', password: '' });
+      setForm({ firstName: '', lastName: '', email: '', phone: '', role: '' });
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Erreur lors de la création'),
   });
 
-  const valid = form.firstName && form.lastName && form.email && form.role && form.password.length >= 6;
+  const valid = form.firstName && form.lastName && form.email && form.role;
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
@@ -328,15 +414,9 @@ function NouvelUtilisateurDialog({ open, onClose }: { open: boolean; onClose: ()
               </Select>
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Mot de passe temporaire *</Label>
-            <div className="relative">
-              <Input type={showPwd ? 'text' : 'password'} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="Min. 6 caractères" />
-              <button type="button" className="absolute right-3 top-2.5 text-muted-foreground" onClick={() => setShowPwd(!showPwd)}>
-                {showPwd ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            Un e-mail d&apos;activation sera envoyé à cette adresse pour que la personne choisisse elle-même son mot de passe.
+          </p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Annuler</Button>
@@ -444,10 +524,14 @@ function UtilisateursTab() {
 // ─── Vue principale ───────────────────────────────────────────────────────────
 export function ParametresView() {
   const { user } = useAuthStore();
-  // La création/modification de compte et les réglages école exigent
-  // ADMIN/DIRECTEUR côté API — masquer ces onglets évite un 403 confus pour
-  // les autres rôles (enseignant, comptable, etc.).
+  const { canVoirFinances } = usePermissions();
+  // La création/modification de compte exige ADMIN/DIRECTEUR côté API —
+  // masquer cet onglet évite un 403 confus pour les autres rôles.
   const estPrivilegie = user?.isSuperAdmin || ['ADMIN', 'DIRECTEUR'].includes((user as any)?.role);
+  // L'onglet École reste visible à un groupe plus large (secrétaire,
+  // comptable) pour qu'ils voient au moins le statut de l'abonnement — seul
+  // le formulaire de modification à l'intérieur reste réservé à ADMIN/DIRECTEUR.
+  const voitEcole = estPrivilegie || canVoirFinances;
 
   return (
     <div className="space-y-6">
@@ -460,12 +544,12 @@ export function ParametresView() {
         <TabsList>
           <TabsTrigger value="profil" className="gap-2"><User className="w-4 h-4" />Profil</TabsTrigger>
           <TabsTrigger value="securite" className="gap-2"><Lock className="w-4 h-4" />Sécurité</TabsTrigger>
-          {estPrivilegie && <TabsTrigger value="ecole" className="gap-2"><Building2 className="w-4 h-4" />École</TabsTrigger>}
+          {voitEcole && <TabsTrigger value="ecole" className="gap-2"><Building2 className="w-4 h-4" />École</TabsTrigger>}
           {estPrivilegie && <TabsTrigger value="utilisateurs" className="gap-2"><Users className="w-4 h-4" />Utilisateurs</TabsTrigger>}
         </TabsList>
         <TabsContent value="profil" className="mt-4"><ProfilTab /></TabsContent>
         <TabsContent value="securite" className="mt-4"><SecuriteTab /></TabsContent>
-        {estPrivilegie && <TabsContent value="ecole" className="mt-4"><EcoleTab /></TabsContent>}
+        {voitEcole && <TabsContent value="ecole" className="mt-4"><EcoleTab /></TabsContent>}
         {estPrivilegie && <TabsContent value="utilisateurs" className="mt-4"><UtilisateursTab /></TabsContent>}
       </Tabs>
     </div>

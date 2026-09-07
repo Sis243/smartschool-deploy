@@ -1,4 +1,4 @@
-import { IsString, IsEmail, IsOptional, IsIn, MinLength } from 'class-validator';
+import { IsString, IsEmail, IsOptional, IsIn } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType, OmitType } from '@nestjs/swagger';
 
 // SUPER_ADMIN (accès plateforme, hors tenant) et PARENT (compte géré via le
@@ -36,11 +36,6 @@ export class CreateUserDto {
   @ApiProperty({ enum: ROLES_ASSIGNABLES })
   @IsIn(ROLES_ASSIGNABLES)
   role: (typeof ROLES_ASSIGNABLES)[number];
-
-  @ApiProperty()
-  @IsString()
-  @MinLength(8)
-  password: string;
 }
 
-export class UpdateUserDto extends PartialType(OmitType(CreateUserDto, ['email', 'password'] as const)) {}
+export class UpdateUserDto extends PartialType(OmitType(CreateUserDto, ['email'] as const)) {}

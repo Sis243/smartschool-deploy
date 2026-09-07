@@ -15,6 +15,8 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTEUR')
   @ApiOperation({ summary: 'Lister les utilisateurs' })
   findAll(@CurrentTenant('id') tenantId: string) {
     return this.usersService.findAll(tenantId);
