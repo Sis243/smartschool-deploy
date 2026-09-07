@@ -42,6 +42,15 @@ export class TenantController {
     return this.tenantService.updateSettings(tenantId, data);
   }
 
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN', 'DIRECTEUR')
+  @ApiBearerAuth()
+  @Patch('me/types-prime')
+  @ApiOperation({ summary: 'Choisir les types de primes/déductions utilisés par l\'école' })
+  updateMesTypesPrimeActifs(@CurrentTenant('id') tenantId: string, @Body() body: { types: string[] }) {
+    return this.tenantService.updateTypesPrimeActifs(tenantId, body.types);
+  }
+
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
   @ApiBearerAuth()
   @Get()

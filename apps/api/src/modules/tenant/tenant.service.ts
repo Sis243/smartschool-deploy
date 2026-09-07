@@ -5,6 +5,7 @@ import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateTenantDto } from './dto/tenant.dto';
 import { MODULES_ACTIVABLES } from '../../common/constants/modules';
+import { CATALOGUE_PAIE_CLES } from '../../common/constants/paie-catalogue';
 import { AuthService } from '../auth/auth.service';
 import { BrevoService } from '../../common/services/brevo.service';
 import { buildEmailHtml } from '../../common/services/email-template';
@@ -194,6 +195,22 @@ export class TenantService {
       await this.prisma.tenant.update({ where: { id: tenant.id }, data: { dernierRappelAbonnement: new Date() } });
       this.logger.log(`Rappel d'abonnement envoyé pour ${tenant.name} (${joursRestants}j restants)`);
     }
+  }
+
+  // Chaque école choisit elle-même, parmi le catalogue de primes/déductions
+  // courantes en RDC, celles qu'elle utilise — présélection réutilisée à la
+  // création des fiches de paie (voir RhService).
+  async updateTypesPrimeActifs(tenantId: string, types: string[]) {
+    const invalides = types.filter((t) => !CATALOGUE_PAIE_CLES.includes(t));
+    if (invalides.length > 0) {
+      throw new BadRequestException(`Type(s) de prime inconnu(s) : ${invalides.join(', ')}`);
+    }
+    await this.findOne(tenantId);
+    return this.prisma.tenant.update({
+      where: { id: tenantId },
+      data: { typesPrimeActifs: types },
+      select: { id: true, typesPrimeActifs: true },
+    });
   }
 
   async updateSettings(tenantId: string, data: {

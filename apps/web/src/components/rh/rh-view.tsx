@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, CheckCircle, Clock, Plus, Search, Trash2, Wallet, Eye } from 'lucide-react';
+import { Users, CheckCircle, Clock, Plus, Search, Trash2, Wallet, Eye, Settings2, Upload, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import api from '@/lib/api';
 import { getInitials } from '@/lib/utils';
 import { usePermissions } from '@/hooks/use-permissions';
+import { CATALOGUE_PAIE } from '@/lib/paie-catalogue';
 import { useModulesActifs } from '@/hooks/use-modules-actifs';
 
 const roleLabels: Record<string, string> = {
@@ -304,8 +305,15 @@ function PaieDialog({ open, onClose, personnel }: { open: boolean; onClose: () =
     onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erreur lors de la création'),
   });
 
-  const ajouterLigne = (type: 'PRIME' | 'DEDUCTION') =>
-    setLignes([...lignes, { type, libelle: '', montant: '' }]);
+  const { data: tenant } = useQuery({
+    queryKey: ['my-tenant'],
+    queryFn: async () => (await api.get('/api/v1/tenants/me')).data.data,
+  });
+  const typesActifs: string[] = tenant?.typesPrimeActifs ?? [];
+  const catalogueActif = CATALOGUE_PAIE.filter((c) => typesActifs.includes(c.cle));
+
+  const ajouterLigne = (type: 'PRIME' | 'DEDUCTION', libellePreRempli?: string) =>
+    setLignes([...lignes, { type, libelle: libellePreRempli ?? '', montant: '' }]);
   const retirerLigne = (i: number) => setLignes(lignes.filter((_, idx) => idx !== i));
   const majLigne = (i: number, patch: Partial<LignePaieForm>) =>
     setLignes(lignes.map((l, idx) => (idx === i ? { ...l, ...patch } : l)));
@@ -341,10 +349,24 @@ function PaieDialog({ open, onClose, personnel }: { open: boolean; onClose: () =
             <div className="flex items-center justify-between">
               <Label>Primes et déductions (facultatif)</Label>
               <div className="flex gap-2">
-                <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => ajouterLigne('PRIME')}>+ Prime</Button>
-                <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => ajouterLigne('DEDUCTION')}>+ Déduction</Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => ajouterLigne('PRIME')}>+ Prime libre</Button>
+                <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => ajouterLigne('DEDUCTION')}>+ Déduction libre</Button>
               </div>
             </div>
+            {catalogueActif.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {catalogueActif.map((c) => (
+                  <button
+                    key={c.cle}
+                    type="button"
+                    onClick={() => ajouterLigne(c.type, c.libelle)}
+                    className="text-xs px-2 py-1 rounded-full border border-border hover:border-blue-400 hover:text-blue-600 transition-colors"
+                  >
+                    + {c.libelle}
+                  </button>
+                ))}
+              </div>
+            )}
             {lignes.map((l, i) => (
               <div key={i} className="flex items-center gap-2">
                 <Badge variant={l.type === 'PRIME' ? 'default' : 'destructive'} className="text-xs shrink-0">{l.type === 'PRIME' ? 'Prime' : 'Déd.'}</Badge>
@@ -438,10 +460,135 @@ function PaieDetailDialog({ id, onClose }: { id: string | null; onClose: () => v
   );
 }
 
+function TypesPrimeDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const qc = useQueryClient();
+  const { data: tenant } = useQuery({
+    queryKey: ['my-tenant'],
+    queryFn: async () => (await api.get('/api/v1/tenants/me')).data.data,
+    enabled: open,
+  });
+  const [types, setTypes] = useState<string[]>([]);
+
+  useEffect(() => { if (open && tenant?.typesPrimeActifs) setTypes(tenant.typesPrimeActifs); }, [open, tenant]);
+
+  const mutation = useMutation({
+    mutationFn: () => api.patch('/api/v1/tenants/me/types-prime', { types }),
+    onSuccess: () => {
+      toast.success('Types de primes mis à jour');
+      qc.invalidateQueries({ queryKey: ['my-tenant'] });
+      onClose();
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erreur'),
+  });
+
+  const toggle = (cle: string) => setTypes((prev) => (prev.includes(cle) ? prev.filter((c) => c !== cle) : [...prev, cle]));
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Types de primes utilisés par l&apos;école</DialogTitle></DialogHeader>
+        <p className="text-xs text-muted-foreground">
+          Sélectionnez les primes/déductions courantes en RDC que votre établissement utilise. Elles apparaîtront comme suggestions rapides lors de la création d&apos;une fiche de paie — rien n&apos;est obligatoire.
+        </p>
+        <div className="space-y-1 py-2">
+          {CATALOGUE_PAIE.map((c) => (
+            <label key={c.cle} className="flex items-center justify-between py-1.5 cursor-pointer">
+              <span className="text-sm">{c.libelle}</span>
+              <input type="checkbox" checked={types.includes(c.cle)} onChange={() => toggle(c.cle)} className="w-4 h-4" />
+            </label>
+          ))}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Annuler</Button>
+          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="bg-blue-600 hover:bg-blue-500">
+            {mutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ImporterPaieDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const qc = useQueryClient();
+  const moisCourant = new Date().toISOString().slice(0, 7);
+  const [periode, setPeriode] = useState(moisCourant);
+  const [fichier, setFichier] = useState<File | null>(null);
+  const [resultat, setResultat] = useState<{ importees: number; erreurs: any[] } | null>(null);
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const fd = new FormData();
+      fd.append('file', fichier!);
+      fd.append('periode', periode);
+      return api.post('/api/v1/rh/paie/importer', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+    },
+    onSuccess: (res: any) => {
+      setResultat(res.data.data);
+      qc.invalidateQueries({ queryKey: ['fiches-paie'] });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erreur lors de l\'import'),
+  });
+
+  const fermer = () => { onClose(); setFichier(null); setResultat(null); };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) fermer(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Importer les fiches de paie (CSV)</DialogTitle></DialogHeader>
+        {!resultat ? (
+          <div className="space-y-4 py-2">
+            <p className="text-xs text-muted-foreground">
+              Pour les écoles qui gèrent déjà leur paie sur Excel : exportez en CSV avec les colonnes <code className="bg-muted px-1 rounded">email</code> et <code className="bg-muted px-1 rounded">salaireBase</code>, puis une colonne par prime/déduction (ex. "Prime de transport", "INSS (part employé)"). Chaque email doit correspondre à un membre du personnel déjà enregistré.
+            </p>
+            <div className="space-y-1.5">
+              <Label>Période *</Label>
+              <Input type="month" value={periode} onChange={(e) => setPeriode(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Fichier CSV *</Label>
+              <Input type="file" accept=".csv" onChange={(e) => setFichier(e.target.files?.[0] ?? null)} />
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3 py-2">
+            <p className="text-sm">
+              <span className="text-emerald-600 font-semibold">{resultat.importees}</span> fiche(s) importée(s) avec succès.
+            </p>
+            {resultat.erreurs.length > 0 && (
+              <div className="space-y-1 max-h-52 overflow-y-auto">
+                <p className="text-xs font-medium text-red-500">{resultat.erreurs.length} erreur(s) :</p>
+                {resultat.erreurs.map((e: any, i: number) => (
+                  <p key={i} className="text-xs text-muted-foreground">Ligne {e.ligne} ({e.email || '—'}) : {e.motif}</p>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        <DialogFooter>
+          {!resultat ? (
+            <>
+              <Button variant="outline" onClick={fermer}>Annuler</Button>
+              <Button onClick={() => mutation.mutate()} disabled={!fichier || !periode || mutation.isPending} className="bg-blue-600 hover:bg-blue-500 gap-2">
+                {mutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                {mutation.isPending ? 'Import...' : 'Importer'}
+              </Button>
+            </>
+          ) : (
+            <Button onClick={fermer} className="bg-blue-600 hover:bg-blue-500">Fermer</Button>
+          )}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function PaieTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [periodeFiltre, setPeriodeFiltre] = useState('');
+  const [typesPrimeOpen, setTypesPrimeOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const { data: personnel = [] } = useQuery({
     queryKey: ['personnel'],
@@ -456,13 +603,23 @@ function PaieTab() {
     <>
       <PaieDialog open={dialogOpen} onClose={() => setDialogOpen(false)} personnel={personnel} />
       <PaieDetailDialog id={detailId} onClose={() => setDetailId(null)} />
+      <TypesPrimeDialog open={typesPrimeOpen} onClose={() => setTypesPrimeOpen(false)} />
+      <ImporterPaieDialog open={importOpen} onClose={() => setImportOpen(false)} />
       <Card className="border-border/50 shadow-sm">
         <CardHeader className="pb-0">
           <div className="flex flex-wrap gap-3 items-center justify-between">
             <Input type="month" value={periodeFiltre} onChange={(e) => setPeriodeFiltre(e.target.value)} className="w-44" />
-            <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={() => setDialogOpen(true)}>
-              <Plus className="w-4 h-4" />Nouvelle fiche
-            </Button>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" className="gap-2" onClick={() => setTypesPrimeOpen(true)}>
+                <Settings2 className="w-4 h-4" />Types de primes
+              </Button>
+              <Button size="sm" variant="outline" className="gap-2" onClick={() => setImportOpen(true)}>
+                <Upload className="w-4 h-4" />Importer CSV
+              </Button>
+              <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={() => setDialogOpen(true)}>
+                <Plus className="w-4 h-4" />Nouvelle fiche
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0 mt-4">

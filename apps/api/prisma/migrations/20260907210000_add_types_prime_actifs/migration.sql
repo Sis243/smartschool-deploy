@@ -1,0 +1,1 @@
+ALTER TABLE "tenants" ADD COLUMN "typesPrimeActifs" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

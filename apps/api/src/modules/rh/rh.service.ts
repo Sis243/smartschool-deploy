@@ -1,10 +1,12 @@
 import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
+import { parse } from 'csv-parse/sync';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StatutPresence } from '@prisma/client';
 import { CreatePersonnelDto } from './dto/personnel.dto';
 import { CreateFichePaieDto } from './dto/paie.dto';
 import { AuthService } from '../auth/auth.service';
+import { CATALOGUE_PAIE } from '../../common/constants/paie-catalogue';
 
 @Injectable()
 export class RhService {
@@ -162,5 +164,92 @@ export class RhService {
     }
     await this.prisma.fichePaie.delete({ where: { id } });
     return { message: 'Fiche de paie supprimée' };
+  }
+
+  // Import en masse depuis un fichier que l'école gère déjà ailleurs (Excel
+  // exporté en CSV). Colonnes attendues : "email" et "salaireBase" ; toute
+  // autre colonne devient une ligne de paie — si son en-tête correspond à un
+  // libellé du catalogue (voir paie-catalogue.ts), son type (PRIME/DEDUCTION)
+  // en est déduit, sinon elle est ajoutée comme prime libre avec l'en-tête
+  // comme libellé. Une ligne par employé déjà enregistré (reconnu par email) ;
+  // les employés introuvables sont reportés en erreur plutôt qu'ignorés en silence.
+  async importerFichesPaie(tenantId: string, periode: string, buffer: Buffer) {
+    let lignesCsv: Record<string, string>[];
+    try {
+      lignesCsv = parse(buffer, { columns: true, skip_empty_lines: true, trim: true, bom: true });
+    } catch {
+      throw new BadRequestException('Fichier CSV illisible — vérifiez le format et l\'encodage');
+    }
+    if (lignesCsv.length === 0) throw new BadRequestException('Le fichier ne contient aucune ligne');
+
+    const colonnes = Object.keys(lignesCsv[0]).filter((c) => c);
+    if (!colonnes.some((c) => c.toLowerCase() === 'email')) {
+      throw new BadRequestException('Colonne "email" manquante');
+    }
+    if (!colonnes.some((c) => c.toLowerCase() === 'salairebase')) {
+      throw new BadRequestException('Colonne "salaireBase" manquante');
+    }
+
+    const catalogueParLibelle = new Map(CATALOGUE_PAIE.map((c) => [c.libelle.toLowerCase(), c]));
+    const colonnesLignes = colonnes.filter((c) => !['email', 'salairebase', 'notes'].includes(c.toLowerCase()));
+
+    const resultats: { ligne: number; email: string; statut: 'importee' | 'erreur'; motif?: string }[] = [];
+
+    for (let i = 0; i < lignesCsv.length; i++) {
+      const ligne = lignesCsv[i];
+      const cle = (nomColonne: string) => colonnes.find((c) => c.toLowerCase() === nomColonne);
+      const email = ligne[cle('email')!]?.trim();
+      const salaireBaseRaw = ligne[cle('salairebase')!]?.trim();
+
+      if (!email) {
+        resultats.push({ ligne: i + 2, email: '', statut: 'erreur', motif: 'Email manquant' });
+        continue;
+      }
+      const salaireBase = Number(salaireBaseRaw);
+      if (!salaireBaseRaw || Number.isNaN(salaireBase)) {
+        resultats.push({ ligne: i + 2, email, statut: 'erreur', motif: 'Salaire de base invalide' });
+        continue;
+      }
+
+      const user = await this.prisma.user.findFirst({ where: { email, tenantId } });
+      if (!user) {
+        resultats.push({ ligne: i + 2, email, statut: 'erreur', motif: 'Aucun membre du personnel avec cet email dans cette école' });
+        continue;
+      }
+
+      const lignesPaie = colonnesLignes
+        .map((col) => {
+          const valeur = Number(ligne[col]?.trim());
+          if (!ligne[col] || Number.isNaN(valeur) || valeur === 0) return null;
+          const catalogue = catalogueParLibelle.get(col.toLowerCase());
+          return { type: catalogue?.type ?? 'PRIME', libelle: catalogue?.libelle ?? col, montant: valeur };
+        })
+        .filter((l): l is { type: 'PRIME' | 'DEDUCTION'; libelle: string; montant: number } => l !== null);
+
+      const notesCol = cle('notes');
+
+      await this.prisma.fichePaie.upsert({
+        where: { userId_periode: { userId: user.id, periode } },
+        update: {
+          salaireBase,
+          notes: notesCol ? ligne[notesCol] : undefined,
+          lignes: { deleteMany: {}, create: lignesPaie },
+        },
+        create: {
+          tenantId,
+          userId: user.id,
+          periode,
+          salaireBase,
+          notes: notesCol ? ligne[notesCol] : undefined,
+          lignes: { create: lignesPaie },
+        },
+      });
+      resultats.push({ ligne: i + 2, email, statut: 'importee' });
+    }
+
+    return {
+      importees: resultats.filter((r) => r.statut === 'importee').length,
+      erreurs: resultats.filter((r) => r.statut === 'erreur'),
+    };
   }
 }

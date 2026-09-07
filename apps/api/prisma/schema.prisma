@@ -169,6 +169,10 @@ model Tenant {
   // common/constants/modules.ts) — Eleves/Notes/Academique/Utilisateurs
   // restent hors de cette liste : c'est le socle toujours actif.
   modulesActifs    String[]         @default(["FINANCES", "RH", "PAIE", "BIBLIOTHEQUE", "TRANSPORT", "AUTISME", "MATERNELLE", "COMMUNICATION", "PARENT_PORTAL"])
+  // Types de primes/déductions du catalogue (voir common/constants/
+  // paie-catalogue.ts) que cette école a choisi d'utiliser — vide par
+  // défaut, chaque école configure elle-même ce qui s'applique chez elle.
+  typesPrimeActifs String[]         @default([])
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 

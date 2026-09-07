@@ -1,5 +1,7 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { RhService } from './rh.service';
 import { CreatePersonnelDto } from './dto/personnel.dto';
 import { CreateFichePaieDto } from './dto/paie.dto';
@@ -9,6 +11,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ModuleActifGuard } from '../../common/guards/module-actif.guard';
 import { RequireModule } from '../../common/decorators/module.decorator';
+import { CATALOGUE_PAIE } from '../../common/constants/paie-catalogue';
 
 const ROLES_PAIE = ['ADMIN', 'DIRECTEUR', 'COMPTABLE'] as const;
 
@@ -55,6 +58,32 @@ export class RhController {
   // ── Paie ──────────────────────────────────────────────────────────────────
   // Réservé à ADMIN/DIRECTEUR/COMPTABLE, en lecture comme en écriture —
   // données salariales sensibles.
+
+  @Get('paie/catalogue')
+  @RequireModule('PAIE')
+  @UseGuards(RolesGuard)
+  @Roles(...ROLES_PAIE)
+  @ApiOperation({ summary: 'Catalogue des types de primes/déductions courants (RDC)' })
+  getCataloguePaie() {
+    return CATALOGUE_PAIE;
+  }
+
+  @Post('paie/importer')
+  @RequireModule('PAIE')
+  @UseGuards(RolesGuard)
+  @Roles(...ROLES_PAIE)
+  @UseInterceptors(FileInterceptor('file', { storage: memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } }))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Importer les fiches de paie en masse depuis un fichier CSV' })
+  importerFichesPaie(
+    @CurrentTenant('id') tenantId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('periode') periode: string,
+  ) {
+    if (!file) throw new BadRequestException('Aucun fichier reçu');
+    if (!periode) throw new BadRequestException('Période requise');
+    return this.rhService.importerFichesPaie(tenantId, periode, file.buffer);
+  }
 
   @Get('paie')
   @RequireModule('PAIE')
