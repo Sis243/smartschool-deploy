@@ -23,6 +23,20 @@ export async function createApp() {
   const configService = app.get(ConfigService);
   const nodeEnv = configService.get<string>('NODE_ENV', 'development');
 
+  // En production, ne jamais démarrer avec les secrets JWT par défaut codés
+  // en dur dans configuration.ts — sinon n'importe qui peut forger un jeton
+  // (y compris super admin) en connaissant ces valeurs publiques du dépôt.
+  if (nodeEnv === 'production') {
+    const secretsParDefaut = ['smartschool-secret-change-in-production', 'smartschool-refresh-secret'];
+    const jwtSecret = configService.get<string>('jwt.secret');
+    const jwtRefreshSecret = configService.get<string>('jwt.refreshSecret');
+    if (!jwtSecret || !jwtRefreshSecret || secretsParDefaut.includes(jwtSecret) || secretsParDefaut.includes(jwtRefreshSecret)) {
+      throw new Error(
+        'JWT_SECRET / JWT_REFRESH_SECRET doivent être définis à des valeurs réelles en production — arrêt du démarrage.',
+      );
+    }
+  }
+
   app.use(helmet());
   app.use(compression());
 

@@ -2,7 +2,6 @@ import { Controller, Get, Post, Patch, Put, Param, Body, UseGuards } from '@nest
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TenantService } from './tenant.service';
 import { CreateTenantDto } from './dto/tenant.dto';
-import { Public } from '../../common/decorators/public.decorator';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -14,10 +13,15 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 export class TenantController {
   constructor(private readonly tenantService: TenantService) {}
 
-  @Public()
-  @Post('register')
-  @ApiOperation({ summary: 'Enregistrer un nouvel établissement' })
-  create(@Body() dto: CreateTenantDto) {
+  // Pas d'auto-inscription publique : seule la super administration crée les
+  // établissements (voir creerEcole ci-dessous) — un client ne peut pas créer
+  // sa propre école depuis le site.
+
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
+  @Post()
+  @ApiOperation({ summary: "Créer un établissement pour le compte d'un client (super admin)" })
+  creerEcole(@Body() dto: CreateTenantDto) {
     return this.tenantService.create(dto);
   }
 
@@ -68,5 +72,16 @@ export class TenantController {
   @ApiOperation({ summary: 'Activer/désactiver les modules payants d\'un établissement (super admin)' })
   updateModules(@Param('id') id: string, @Body() body: { modules: string[] }) {
     return this.tenantService.updateModules(id, body.modules);
+  }
+
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
+  @Patch(':id/abonnement')
+  @ApiOperation({ summary: "Activer/renouveler la licence d'un établissement (super admin)" })
+  activerAbonnement(
+    @Param('id') id: string,
+    @Body() body: { cycle: 'MENSUEL' | 'ANNUEL' | 'A_VIE'; dateDebut?: string },
+  ) {
+    return this.tenantService.activerAbonnement(id, body.cycle, body.dateDebut);
   }
 }

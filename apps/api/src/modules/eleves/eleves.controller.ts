@@ -15,6 +15,8 @@ export class ElevesController {
   constructor(private readonly elevesService: ElevesService) {}
 
   @Get()
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTEUR', 'SECRETAIRE', 'ENSEIGNANT')
   @ApiOperation({ summary: 'Lister les élèves' })
   findAll(
     @CurrentTenant('id') tenantId: string,
@@ -24,6 +26,8 @@ export class ElevesController {
   }
 
   @Get('parents')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTEUR', 'SECRETAIRE')
   @ApiOperation({ summary: 'Lister les parents du tenant' })
   getParents(@CurrentTenant('id') tenantId: string) {
     return this.elevesService.getParents(tenantId);
@@ -38,6 +42,8 @@ export class ElevesController {
   }
 
   @Get(':id')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTEUR', 'SECRETAIRE', 'ENSEIGNANT')
   @ApiOperation({ summary: 'Détails d\'un élève' })
   findOne(@Param('id') id: string, @CurrentTenant('id') tenantId: string) {
     return this.elevesService.findOne(id, tenantId);

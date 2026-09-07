@@ -66,29 +66,34 @@ export class NotifParentService {
     );
   }
 
-  async findByParent(parentId: string, page = 1, limit = 20) {
+  // tenantId est redondant avec parentId (un parent appartient à un seul
+  // tenant) mais sert de seconde barrière : si parentId était un jour
+  // undefined/mal résolu, un filtre where vide renverrait TOUT le monde au
+  // lieu de rien — voir l'incident où req.user.sub (inexistant) laissait
+  // passer une requête non filtrée.
+  async findByParent(tenantId: string, parentId: string, page = 1, limit = 20) {
     page = Number(page) || 1;
     limit = Number(limit) || 20;
     const [data, total] = await Promise.all([
       this.prisma.notifParent.findMany({
-        where: { parentId },
+        where: { tenantId, parentId },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * limit,
         take: limit,
       }),
-      this.prisma.notifParent.count({ where: { parentId } }),
+      this.prisma.notifParent.count({ where: { tenantId, parentId } }),
     ]);
     return { data, meta: { total, page, limit, pages: Math.ceil(total / limit) } };
   }
 
-  async marquerLu(id: string, parentId: string) {
+  async marquerLu(tenantId: string, id: string, parentId: string) {
     return this.prisma.notifParent.updateMany({
-      where: { id, parentId },
+      where: { id, parentId, tenantId },
       data: { lu: true },
     });
   }
 
-  async countNonLues(parentId: string) {
-    return this.prisma.notifParent.count({ where: { parentId, lu: false } });
+  async countNonLues(tenantId: string, parentId: string) {
+    return this.prisma.notifParent.count({ where: { tenantId, parentId, lu: false } });
   }
 }

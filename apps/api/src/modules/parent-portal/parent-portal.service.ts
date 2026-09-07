@@ -84,7 +84,7 @@ export class ParentPortalService {
         orderBy: { echeance: 'asc' },
         take: 5,
       }),
-      this.prisma.notifParent.count({ where: { parentId, lu: false } }),
+      this.prisma.notifParent.count({ where: { tenantId, parentId, lu: false } }),
     ]);
 
     return { eleves, facturesEnAttente: factures, notifNonLues: nonLues };
@@ -151,12 +151,12 @@ export class ParentPortalService {
 
   // ── Notifications ─────────────────────────────────────────────────────────
 
-  async getNotifications(parentId: string, page = 1, limit = 20) {
-    return this.notifService.findByParent(parentId, page, limit);
+  async getNotifications(tenantId: string, parentId: string, page = 1, limit = 20) {
+    return this.notifService.findByParent(tenantId, parentId, page, limit);
   }
 
-  async marquerLu(id: string, parentId: string) {
-    return this.notifService.marquerLu(id, parentId);
+  async marquerLu(tenantId: string, id: string, parentId: string) {
+    return this.notifService.marquerLu(tenantId, id, parentId);
   }
 
   // ── Admin: lister preuves en attente ──────────────────────────────────────

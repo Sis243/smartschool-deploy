@@ -8,6 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { SchoolyardIllustration } from '@/components/landing/schoolyard-illustration';
 
+// Pas d'auto-inscription publique : chaque établissement est créé par la
+// super administration après contact commercial (voir /super-admin).
+const WHATSAPP_CONTACT = 'https://wa.me/243979710633';
+
 export const metadata: Metadata = {
   title: 'SmartSchool ERP — Plateforme de gestion scolaire',
   description: "Gestion complète d'établissements scolaires : élèves, finances, notes, présences par reconnaissance faciale, portail parent et module spécialisé pour enfants à besoins particuliers.",
@@ -49,7 +53,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-3">
             <Link href="/login" className="text-sm text-slate-300 hover:text-white transition-colors">Se connecter</Link>
             <Button asChild size="sm" className="bg-blue-600 hover:bg-blue-500">
-              <Link href="/register">Créer mon établissement</Link>
+              <Link href={WHATSAPP_CONTACT} target="_blank" rel="noopener noreferrer">Nous contacter</Link>
             </Button>
           </div>
         </div>
@@ -70,7 +74,7 @@ export default function LandingPage() {
         </p>
         <div className="mt-10 flex flex-col sm:flex-row gap-3 justify-center">
           <Button asChild size="lg" className="bg-blue-600 hover:bg-blue-500 gap-2 text-base h-12 px-8">
-            <Link href="/register">Créer mon établissement<ArrowRight className="w-4 h-4" /></Link>
+            <Link href={WHATSAPP_CONTACT} target="_blank" rel="noopener noreferrer">Nous contacter sur WhatsApp<ArrowRight className="w-4 h-4" /></Link>
           </Button>
           <Button asChild size="lg" variant="outline" className="border-slate-700 text-slate-200 hover:bg-slate-800 h-12 px-8 text-base">
             <Link href="/login">J'ai déjà un compte</Link>
@@ -127,9 +131,9 @@ export default function LandingPage() {
       <section className="border-t border-slate-800/80">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-20 text-center">
           <h2 className="text-2xl sm:text-3xl font-bold text-white">Prêt à digitaliser votre établissement ?</h2>
-          <p className="text-slate-400 mt-3">Créez le compte de votre école en quelques minutes.</p>
+          <p className="text-slate-400 mt-3">Contactez-nous pour démarrer — nous configurons votre école pour vous.</p>
           <Button asChild size="lg" className="mt-8 bg-blue-600 hover:bg-blue-500 gap-2 text-base h-12 px-8">
-            <Link href="/register">Créer mon établissement<ArrowRight className="w-4 h-4" /></Link>
+            <Link href={WHATSAPP_CONTACT} target="_blank" rel="noopener noreferrer">Nous contacter sur WhatsApp<ArrowRight className="w-4 h-4" /></Link>
           </Button>
         </div>
       </section>

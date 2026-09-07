@@ -25,8 +25,11 @@ function LivreDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
 
   const mutation = useMutation({
     mutationFn: () => api.post('/api/v1/bibliotheque/livres', {
-      ...form,
-      quantite: Number(form.quantite),
+      titre: form.titre,
+      auteur: form.auteur,
+      isbn: form.isbn || undefined,
+      categorie: form.categorie || undefined,
+      quantiteTotale: Number(form.quantite),
       quantiteDisponible: Number(form.quantite),
     }),
     onSuccess: () => {
@@ -123,7 +126,7 @@ function EmpruntDialog({ open, onClose, livre }: { open: boolean; onClose: () =>
             <div className="bg-muted/40 rounded-lg p-3 text-sm">
               <p className="font-medium">{livre.titre}</p>
               <p className="text-muted-foreground">{livre.auteur}</p>
-              <p className="mt-1 text-xs"><span className={livre.quantiteDisponible > 0 ? 'text-emerald-600' : 'text-red-500'}>{livre.quantiteDisponible}</span> / {livre.quantite} exemplaire(s) disponible(s)</p>
+              <p className="mt-1 text-xs"><span className={livre.quantiteDisponible > 0 ? 'text-emerald-600' : 'text-red-500'}>{livre.quantiteDisponible}</span> / {livre.quantiteTotale} exemplaire(s) disponible(s)</p>
             </div>
           )}
           <div className="space-y-1.5">
@@ -208,10 +211,10 @@ function CatalogueTab() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <div className="w-16 h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${l.quantite > 0 ? (l.quantiteDisponible / l.quantite) * 100 : 0}%` }} />
+                        <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${l.quantiteTotale > 0 ? (l.quantiteDisponible / l.quantiteTotale) * 100 : 0}%` }} />
                       </div>
                       <span className={`text-sm font-medium ${l.quantiteDisponible > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-                        {l.quantiteDisponible}/{l.quantite}
+                        {l.quantiteDisponible}/{l.quantiteTotale}
                       </span>
                     </div>
                   </TableCell>

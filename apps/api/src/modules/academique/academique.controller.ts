@@ -13,7 +13,8 @@ const ROLES_GESTION_ACADEMIQUE = ['ADMIN', 'DIRECTEUR', 'SECRETAIRE', 'ENSEIGNAN
 
 @ApiTags('Academique')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
+@Roles(...ROLES_GESTION_ACADEMIQUE)
 @Controller('academique')
 export class AcademiqueController {
   constructor(private readonly academiqueService: AcademiqueService) {}
@@ -24,8 +25,6 @@ export class AcademiqueController {
   }
 
   @Post('classes')
-  @UseGuards(RolesGuard)
-  @Roles(...ROLES_GESTION_ACADEMIQUE)
   createClasse(@CurrentTenant('id') tenantId: string, @Body() data: any) {
     return this.academiqueService.createClasse(tenantId, data);
   }
@@ -36,8 +35,6 @@ export class AcademiqueController {
   }
 
   @Post('matieres')
-  @UseGuards(RolesGuard)
-  @Roles(...ROLES_GESTION_ACADEMIQUE)
   createMatiere(@CurrentTenant('id') tenantId: string, @Body() data: any) {
     return this.academiqueService.createMatiere(tenantId, data);
   }
@@ -58,15 +55,11 @@ export class AcademiqueController {
   }
 
   @Post('annee-scolaire')
-  @UseGuards(RolesGuard)
-  @Roles(...ROLES_GESTION_ACADEMIQUE)
   createAnneeScolaire(@CurrentTenant('id') tenantId: string, @Body() data: any) {
     return this.academiqueService.createAnneeScolaire(tenantId, data);
   }
 
   @Patch('annees-scolaires/:id/activer')
-  @UseGuards(RolesGuard)
-  @Roles(...ROLES_GESTION_ACADEMIQUE)
   activerAnneeScolaire(@CurrentTenant('id') tenantId: string, @Param('id') id: string) {
     return this.academiqueService.activerAnneeScolaire(tenantId, id);
   }
@@ -77,15 +70,11 @@ export class AcademiqueController {
   }
 
   @Post('periodes')
-  @UseGuards(RolesGuard)
-  @Roles(...ROLES_GESTION_ACADEMIQUE)
   createPeriode(@CurrentTenant('id') tenantId: string, @Body() data: any) {
     return this.academiqueService.createPeriode(tenantId, data);
   }
 
   @Patch('periodes/:id/activer')
-  @UseGuards(RolesGuard)
-  @Roles(...ROLES_GESTION_ACADEMIQUE)
   activerPeriode(@CurrentTenant('id') tenantId: string, @Param('id') id: string) {
     return this.academiqueService.activerPeriode(tenantId, id);
   }
@@ -99,8 +88,6 @@ export class AcademiqueController {
   }
 
   @Post('examens')
-  @UseGuards(RolesGuard)
-  @Roles(...ROLES_GESTION_ACADEMIQUE)
   createExamen(@CurrentTenant('id') tenantId: string, @Body() data: any) {
     return this.academiqueService.createExamen(tenantId, data);
   }
@@ -120,16 +107,12 @@ export class AcademiqueController {
   }
 
   @Post('presences/scan')
-  @UseGuards(RolesGuard)
-  @Roles(...ROLES_GESTION_ACADEMIQUE)
   @ApiOperation({ summary: 'Pointer la présence d\'un élève reconnu par scan facial' })
   pointerPresenceFaciale(@CurrentTenant('id') tenantId: string, @Body() body: { eleveId: string }) {
     return this.academiqueService.pointerPresenceFaciale(tenantId, body.eleveId);
   }
 
   @Put('presences')
-  @UseGuards(RolesGuard)
-  @Roles(...ROLES_GESTION_ACADEMIQUE)
   marquerPresences(
     @CurrentTenant('id') tenantId: string,
     @Body() body: { presences: any[]; date: string },

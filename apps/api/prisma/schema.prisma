@@ -18,7 +18,12 @@ datasource db {
 // ENUMS
 // ============================================================
 
+// GENERALE est la valeur par défaut de toute nouvelle école — les autres
+// valeurs restent pour les écoles déjà classées, mais la spécialisation
+// réelle (maternelle, autisme...) se fait désormais via Tenant.modulesActifs,
+// pas via ce type figé à la création.
 enum SchoolType {
+  GENERALE
   MATERNELLE
   PRIMAIRE
   SECONDAIRE
@@ -32,6 +37,16 @@ enum SubscriptionPlan {
   STANDARD
   PREMIUM
   ENTERPRISE
+}
+
+// Cycle de facturation de la licence — distinct de SubscriptionPlan (qui ne
+// décrit qu'un palier de fonctionnalités). C'est ce cycle qui détermine si
+// l'accès de l'école est bloqué (voir verifierAbonnementActif) :
+// MENSUEL/ANNUEL expirent à subscriptionEnd, A_VIE n'expire jamais.
+enum CycleAbonnement {
+  MENSUEL
+  ANNUEL
+  A_VIE
 }
 
 enum UserRole {
@@ -140,9 +155,14 @@ model Tenant {
   phone            String?
   address          String?
   logoUrl          String?
-  schoolType       SchoolType
+  schoolType       SchoolType       @default(GENERALE)
   subscriptionPlan SubscriptionPlan @default(BASIC)
-  subscriptionEnd  DateTime?
+  // Licence/facturation — distinct de subscriptionPlan ci-dessus.
+  // subscriptionEnd = null : A_VIE (jamais bloqué) OU pas encore activé par
+  // le super admin (pas encore bloqué non plus, le temps de configurer l'école).
+  subscriptionCycle    CycleAbonnement @default(MENSUEL)
+  subscriptionEnd      DateTime?
+  dernierRappelAbonnement DateTime?
   isActive         Boolean          @default(true)
   settings         Json?
   // Modules payants activables/desactivables par ecole (voir ModuleCle dans
@@ -181,6 +201,7 @@ model Tenant {
   preuvesPaiement     PreuvePaiement[]
   notifParents        NotifParent[]
   fichesPaie          FichePaie[]
+  parents             Parent[]
 
   @@map("tenants")
 }
@@ -241,6 +262,7 @@ model Parent {
   accessCode   String?   @unique // code 6 chars généré par l'école
   portalActif  Boolean   @default(false)
 
+  tenant        Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   eleves        Eleve[]
   notifParents  NotifParent[]
   preuves       PreuvePaiement[]

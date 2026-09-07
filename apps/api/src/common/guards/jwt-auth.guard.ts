@@ -2,6 +2,7 @@ import { Injectable, ExecutionContext, UnauthorizedException } from '@nestjs/com
 import { AuthGuard } from '@nestjs/passport';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import { verifierAbonnementActif } from '../utils/verifier-abonnement';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -32,6 +33,7 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     if (!user.isSuperAdmin) {
       const request = context.switchToHttp().getRequest();
       request.tenantId = user.tenantId;
+      verifierAbonnementActif(user.tenant);
     }
 
     return user;

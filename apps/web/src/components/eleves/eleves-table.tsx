@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Search, Plus, QrCode, FileDown, ChevronLeft, ChevronRight, Pencil, Trash2, KeyRound, ScanFace, Loader2, CheckCircle2 } from 'lucide-react';
+import { Search, Plus, QrCode, FileDown, ChevronLeft, ChevronRight, Pencil, Trash2, KeyRound, ScanFace, Loader2, CheckCircle2, Camera, Upload } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -199,7 +199,9 @@ function VisageDialog({ open, onClose, eleve }: { open: boolean; onClose: () => 
   const qc = useQueryClient();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const [mode, setMode] = useState<'camera' | 'fichier'>('camera');
   const [pretModeles, setPretModeles] = useState(false);
   const [pretCamera, setPretCamera] = useState(false);
   const [empreinte, setEmpreinte] = useState<Float32Array | null>(null);
@@ -215,6 +217,17 @@ function VisageDialog({ open, onClose, eleve }: { open: boolean; onClose: () => 
       .then(() => { if (!annule) setPretModeles(true); })
       .catch(() => setErreur('Impossible de charger le module de reconnaissance faciale'));
 
+    return () => { annule = true; };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || mode !== 'camera') {
+      streamRef.current?.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+      setPretCamera(false);
+      return;
+    }
+    let annule = false;
     navigator.mediaDevices?.getUserMedia({ video: { facingMode: 'user' } })
       .then((stream) => {
         if (annule) { stream.getTracks().forEach((t) => t.stop()); return; }
@@ -229,10 +242,17 @@ function VisageDialog({ open, onClose, eleve }: { open: boolean; onClose: () => 
       streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
       setPretCamera(false);
+    };
+  }, [open, mode]);
+
+  useEffect(() => {
+    if (!open) {
       setEmpreinte(null);
       setCapture(null);
       setErreur('');
-    };
+      setMode('camera');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
   }, [open]);
 
   const capturer = async () => {
@@ -251,6 +271,39 @@ function VisageDialog({ open, onClose, eleve }: { open: boolean; onClose: () => 
       }
       setEmpreinte(descripteur);
       setCapture(canvas.toDataURL('image/jpeg', 0.85));
+    } finally {
+      setAnalyse(false);
+    }
+  };
+
+  const importerFichier = async (fichier: File) => {
+    if (!canvasRef.current) return;
+    setAnalyse(true);
+    setErreur('');
+    try {
+      const image = new Image();
+      const url = URL.createObjectURL(fichier);
+      await new Promise<void>((resolve, reject) => {
+        image.onload = () => resolve();
+        image.onerror = () => reject(new Error('Image illisible'));
+        image.src = url;
+      });
+
+      const canvas = canvasRef.current;
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      canvas.getContext('2d')?.drawImage(image, 0, 0);
+      URL.revokeObjectURL(url);
+
+      const descripteur = await extraireEmpreinte(canvas);
+      if (!descripteur) {
+        setErreur('Aucun visage net détecté sur cette photo — utilisez une photo de face, bien éclairée');
+        return;
+      }
+      setEmpreinte(descripteur);
+      setCapture(canvas.toDataURL('image/jpeg', 0.85));
+    } catch {
+      setErreur('Impossible de lire ce fichier — utilisez une image (JPG, PNG)');
     } finally {
       setAnalyse(false);
     }
@@ -287,21 +340,64 @@ function VisageDialog({ open, onClose, eleve }: { open: boolean; onClose: () => 
           <DialogTitle>Reconnaissance faciale — {eleve?.prenom} {eleve?.nom}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 py-2">
+          {!capture && (
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button" variant={mode === 'camera' ? 'default' : 'outline'}
+                className={mode === 'camera' ? 'bg-blue-600 hover:bg-blue-500 gap-1.5' : 'gap-1.5'}
+                onClick={() => { setMode('camera'); setErreur(''); }}
+              >
+                <Camera className="w-4 h-4" />Caméra
+              </Button>
+              <Button
+                type="button" variant={mode === 'fichier' ? 'default' : 'outline'}
+                className={mode === 'fichier' ? 'bg-blue-600 hover:bg-blue-500 gap-1.5' : 'gap-1.5'}
+                onClick={() => { setMode('fichier'); setErreur(''); }}
+              >
+                <Upload className="w-4 h-4" />Importer une photo
+              </Button>
+            </div>
+          )}
+
           <p className="text-xs text-muted-foreground">
-            Cadrez le visage de l'élève bien éclairé, de face, puis capturez. Cette photo servira de référence pour le pointage automatique des présences.
+            {mode === 'camera'
+              ? "Cadrez le visage de l'élève bien éclairé, de face, puis capturez."
+              : "Importez la photo passeport ou d'identité de l'élève (visage net, de face)."}
+            {' '}Cette photo servira de référence pour le pointage automatique des présences.
           </p>
-          <div className="relative rounded-lg overflow-hidden bg-black aspect-video flex items-center justify-center">
-            {capture ? (
-              <img src={capture} alt="Capture" className="w-full h-full object-cover" />
-            ) : (
-              <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
-            )}
-            {(!pretModeles || !pretCamera) && !capture && !erreur && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-white text-xs gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />Initialisation de la caméra...
-              </div>
-            )}
-          </div>
+
+          {mode === 'camera' || capture ? (
+            <div className="relative rounded-lg overflow-hidden bg-black aspect-video flex items-center justify-center">
+              {capture ? (
+                <img src={capture} alt="Capture" className="w-full h-full object-cover" />
+              ) : (
+                <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1]" />
+              )}
+              {mode === 'camera' && (!pretModeles || !pretCamera) && !capture && !erreur && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-white text-xs gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />Initialisation de la caméra...
+                </div>
+              )}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!pretModeles || analyse}
+              className="w-full rounded-lg border-2 border-dashed border-border aspect-video flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-blue-400 hover:text-blue-500 transition-colors disabled:opacity-50"
+            >
+              {analyse ? <Loader2 className="w-6 h-6 animate-spin" /> : <Upload className="w-6 h-6" />}
+              <span className="text-sm">{analyse ? 'Analyse de la photo...' : 'Cliquez pour choisir une photo'}</span>
+            </button>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => { const f = e.target.files?.[0]; if (f) importerFichier(f); }}
+          />
+
           <canvas ref={canvasRef} className="hidden" />
           {erreur && <p className="text-xs text-red-500">{erreur}</p>}
           {capture && !erreur && (
@@ -312,17 +408,19 @@ function VisageDialog({ open, onClose, eleve }: { open: boolean; onClose: () => 
           <Button variant="outline" onClick={onClose}>Annuler</Button>
           {capture ? (
             <>
-              <Button variant="outline" onClick={() => { setCapture(null); setEmpreinte(null); }}>Reprendre</Button>
+              <Button variant="outline" onClick={() => { setCapture(null); setEmpreinte(null); if (fileInputRef.current) fileInputRef.current.value = ''; }}>
+                Reprendre
+              </Button>
               <Button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="bg-blue-600 hover:bg-blue-500">
                 {mutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
               </Button>
             </>
-          ) : (
+          ) : mode === 'camera' ? (
             <Button onClick={capturer} disabled={!pretModeles || !pretCamera || analyse} className="bg-blue-600 hover:bg-blue-500 gap-2">
               {analyse ? <Loader2 className="w-4 h-4 animate-spin" /> : <ScanFace className="w-4 h-4" />}
               {analyse ? 'Analyse...' : 'Capturer'}
             </Button>
-          )}
+          ) : null}
         </DialogFooter>
       </DialogContent>
     </Dialog>

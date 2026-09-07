@@ -1,0 +1,1 @@
+ALTER TABLE "tenants" ALTER COLUMN "schoolType" SET DEFAULT 'GENERALE';

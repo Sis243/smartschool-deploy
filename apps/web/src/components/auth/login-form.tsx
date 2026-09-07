@@ -133,10 +133,6 @@ export function LoginForm() {
               Mot de passe oublié ?{' '}
               <Link href="/forgot-password" className="text-blue-400 hover:underline">Réinitialiser</Link>
             </p>
-            <p className="text-xs text-slate-500 text-center w-full">
-              Nouvel établissement ?{' '}
-              <Link href="/register" className="text-blue-400 hover:underline">Créer un compte</Link>
-            </p>
           </CardFooter>
         </Card>
 

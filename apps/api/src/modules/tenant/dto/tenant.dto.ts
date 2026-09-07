@@ -2,6 +2,7 @@ import { IsString, IsEmail, IsOptional, IsEnum, MinLength } from 'class-validato
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export enum SchoolType {
+  GENERALE = 'GENERALE',
   MATERNELLE = 'MATERNELLE',
   PRIMAIRE = 'PRIMAIRE',
   SECONDAIRE = 'SECONDAIRE',
@@ -40,9 +41,13 @@ export class CreateTenantDto {
   @IsString()
   address?: string;
 
-  @ApiProperty({ enum: SchoolType })
+  @ApiPropertyOptional({
+    enum: SchoolType,
+    description: "GENERALE par défaut — la spécialisation réelle (maternelle, autisme...) se fait via les modules activables, pas ce champ.",
+  })
+  @IsOptional()
   @IsEnum(SchoolType)
-  schoolType: SchoolType;
+  schoolType?: SchoolType;
 
   @ApiPropertyOptional({ enum: SubscriptionPlan })
   @IsOptional()
@@ -61,8 +66,13 @@ export class CreateTenantDto {
   @IsEmail()
   adminEmail: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description:
+      "Requis pour l'auto-inscription publique (la personne choisit son mot de passe). " +
+      "Omis quand un super admin crée l'école : un e-mail d'activation est envoyé à l'administrateur à la place.",
+  })
+  @IsOptional()
   @IsString()
   @MinLength(8)
-  adminPassword: string;
+  adminPassword?: string;
 }

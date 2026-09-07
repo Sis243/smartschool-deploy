@@ -65,14 +65,14 @@ export class ParentPortalController {
   @UseGuards(ParentJwtGuard, ModuleActifGuard)
   @RequireModule('PARENT_PORTAL')
   dashboard(@Request() req: any) {
-    return this.service.getDashboard(req.user.tenantId, req.user.sub);
+    return this.service.getDashboard(req.user.tenantId, req.user.id);
   }
 
   @Get('factures')
   @UseGuards(ParentJwtGuard, ModuleActifGuard)
   @RequireModule('PARENT_PORTAL')
   factures(@Request() req: any) {
-    return this.service.getFactures(req.user.tenantId, req.user.sub);
+    return this.service.getFactures(req.user.tenantId, req.user.id);
   }
 
   @Post('paiements/preuve')
@@ -90,7 +90,7 @@ export class ParentPortalController {
       fichierNom?: string;
     },
   ) {
-    return this.service.soumettrePreuve(req.user.tenantId, req.user.sub, body);
+    return this.service.soumettrePreuve(req.user.tenantId, req.user.id, body);
   }
 
   @Get('notifications')
@@ -101,14 +101,14 @@ export class ParentPortalController {
     @Query('page') page = 1,
     @Query('limit') limit = 20,
   ) {
-    return this.service.getNotifications(req.user.sub, Number(page), Number(limit));
+    return this.service.getNotifications(req.user.tenantId, req.user.id, Number(page), Number(limit));
   }
 
   @Patch('notifications/:id/lu')
   @UseGuards(ParentJwtGuard, ModuleActifGuard)
   @RequireModule('PARENT_PORTAL')
   marquerLu(@Request() req: any, @Param('id') id: string) {
-    return this.service.marquerLu(id, req.user.sub);
+    return this.service.marquerLu(req.user.tenantId, id, req.user.id);
   }
 
   // ── Admin endpoints (requires admin JWT) ─────────────────────────────────
@@ -133,7 +133,7 @@ export class ParentPortalController {
     @Request() req: any,
     @Body() body: { action: 'VALIDE' | 'REJETE'; noteAdmin?: string },
   ) {
-    return this.service.validerPreuve(tenantId, id, req.user.sub, body.action, body.noteAdmin);
+    return this.service.validerPreuve(tenantId, id, req.user.id, body.action, body.noteAdmin);
   }
 
   @Post('admin/parents/:parentId/access-code')

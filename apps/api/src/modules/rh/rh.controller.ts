@@ -21,6 +21,8 @@ export class RhController {
   constructor(private readonly rhService: RhService) {}
 
   @Get('personnel')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTEUR')
   @ApiOperation({ summary: 'Lister le personnel' })
   findAll(@CurrentTenant('id') tenantId: string) {
     return this.rhService.findAllPersonnel(tenantId);

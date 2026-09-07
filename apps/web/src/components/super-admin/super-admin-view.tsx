@@ -2,17 +2,128 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Building2, Users, GraduationCap, Settings2 } from 'lucide-react';
+import { Building2, Users, GraduationCap, Settings2, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import api from '@/lib/api';
 import { MODULES_ACTIVABLES, MODULES_LABELS, ModuleCle } from '@/lib/modules';
+
+const SUBSCRIPTION_PLANS = [
+  { value: 'BASIC', label: 'Basic' },
+  { value: 'STANDARD', label: 'Standard' },
+  { value: 'PREMIUM', label: 'Premium' },
+  { value: 'ENTERPRISE', label: 'Enterprise' },
+] as const;
+
+const slugify = (s: string) =>
+  s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+// Pas de "type d'école" figé à la création : une école est générale par
+// défaut (schoolType: GENERALE côté API) — les spécialisations (maternelle,
+// autisme...) s'activent après coup via l'onglet Modules.
+const ECOLE_VIDE = {
+  name: '', slug: '', email: '', phone: '', address: '',
+  subscriptionPlan: 'BASIC',
+  adminFirstName: '', adminLastName: '', adminEmail: '',
+};
+
+function NouvelleEcoleDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState(ECOLE_VIDE);
+
+  const mutation = useMutation({
+    mutationFn: () => api.post('/api/v1/tenants', form),
+    onSuccess: (res: any) => {
+      const invitationEnvoyee = res?.data?.data?.invitationEnvoyee;
+      toast.success(
+        invitationEnvoyee
+          ? `École créée — un e-mail d'activation a été envoyé à ${form.adminEmail}`
+          : "École créée — l'e-mail d'activation n'a pas pu être envoyé, l'admin peut utiliser \"Mot de passe oublié\"",
+        { duration: 6000 },
+      );
+      qc.invalidateQueries({ queryKey: ['tenants-super-admin'] });
+      onClose();
+      setForm(ECOLE_VIDE);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erreur lors de la création'),
+  });
+
+  const valide = form.name && form.slug && form.email && form.adminFirstName && form.adminLastName && form.adminEmail;
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { onClose(); setForm(ECOLE_VIDE); } }}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Nouvelle école</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Établissement</p>
+          <div className="space-y-1.5">
+            <Label>Nom de l&apos;école *</Label>
+            <Input
+              placeholder="École Bon Départ"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value, slug: slugify(e.target.value) })}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Identifiant unique *</Label>
+            <Input placeholder="ecole-bon-depart" value={form.slug} onChange={(e) => setForm({ ...form, slug: e.target.value })} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Email de contact *</Label>
+              <Input type="email" placeholder="info@ecole.cd" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Téléphone</Label>
+              <Input placeholder="+243 ..." value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Plan d&apos;abonnement</Label>
+            <Select value={form.subscriptionPlan} onValueChange={(v) => setForm({ ...form, subscriptionPlan: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{SUBSCRIPTION_PLANS.map((p) => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-2">Administrateur de l&apos;école</p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Prénom *</Label>
+              <Input placeholder="Jean" value={form.adminFirstName} onChange={(e) => setForm({ ...form, adminFirstName: e.target.value })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Nom *</Label>
+              <Input placeholder="Directeur" value={form.adminLastName} onChange={(e) => setForm({ ...form, adminLastName: e.target.value })} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Email administrateur *</Label>
+            <Input type="email" placeholder="admin@ecole.cd" value={form.adminEmail} onChange={(e) => setForm({ ...form, adminEmail: e.target.value })} />
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Un e-mail d&apos;activation sera envoyé à cette adresse pour que l&apos;administrateur choisisse lui-même son mot de passe.
+          </p>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => { onClose(); setForm(ECOLE_VIDE); }}>Annuler</Button>
+          <Button onClick={() => mutation.mutate()} disabled={!valide || mutation.isPending} className="bg-blue-600 hover:bg-blue-500">
+            {mutation.isPending ? 'Création...' : "Créer l'école"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 function ModulesDialog({ tenant, onClose }: { tenant: any; onClose: () => void }) {
   const qc = useQueryClient();
@@ -57,6 +168,7 @@ function ModulesDialog({ tenant, onClose }: { tenant: any; onClose: () => void }
 export function SuperAdminView() {
   const qc = useQueryClient();
   const [tenantModules, setTenantModules] = useState<any | null>(null);
+  const [nouvelleEcoleOpen, setNouvelleEcoleOpen] = useState(false);
 
   const { data: tenants = [], isLoading } = useQuery({
     queryKey: ['tenants-super-admin'],
@@ -76,9 +188,15 @@ export function SuperAdminView() {
   return (
     <div className="space-y-6">
       {tenantModules && <ModulesDialog tenant={tenantModules} onClose={() => setTenantModules(null)} />}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Super Administration</h1>
-        <p className="text-muted-foreground text-sm mt-1">Gestion des établissements et de leurs modules souscrits</p>
+      <NouvelleEcoleDialog open={nouvelleEcoleOpen} onClose={() => setNouvelleEcoleOpen(false)} />
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Super Administration</h1>
+          <p className="text-muted-foreground text-sm mt-1">Gestion des établissements et de leurs modules souscrits</p>
+        </div>
+        <Button className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={() => setNouvelleEcoleOpen(true)}>
+          <Plus className="w-4 h-4" />Nouvelle école
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

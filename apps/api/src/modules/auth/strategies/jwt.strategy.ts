@@ -21,15 +21,17 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // Les jetons du portail parent (parent-portal.service#login) portent
     // type:'parent' et sub = Parent.id (pas User.id) — ils n'ont donc pas de
     // ligne correspondante dans `users` et doivent être résolus à part.
+    const tenantAbonnementSelect = { isActive: true, subscriptionCycle: true, subscriptionEnd: true } as const;
+
     if (payload.type === 'parent') {
       const parent = await this.prisma.parent.findUnique({
         where: { id: payload.sub },
-        select: { id: true, tenantId: true, portalActif: true },
+        select: { id: true, tenantId: true, portalActif: true, tenant: { select: tenantAbonnementSelect } },
       });
       if (!parent || !parent.portalActif) {
         throw new UnauthorizedException('Compte parent introuvable ou portail désactivé');
       }
-      return { id: parent.id, tenantId: parent.tenantId, type: 'parent', isSuperAdmin: false };
+      return { id: parent.id, tenantId: parent.tenantId, type: 'parent', isSuperAdmin: false, tenant: parent.tenant };
     }
 
     const user = await this.prisma.user.findUnique({
@@ -42,6 +44,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         role: true,
         tenantId: true,
         isSuperAdmin: true,
+        tenant: { select: tenantAbonnementSelect },
       },
     });
 
