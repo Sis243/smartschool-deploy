@@ -10,10 +10,16 @@ api.interceptors.request.use((config) => {
     const token = localStorage.getItem('access_token');
     if (token) config.headers.Authorization = `Bearer ${token}`;
 
-    // Production: résolution via sous-domaine (bondepart.smartschool.cd)
+    // Production: résolution via sous-domaine (bondepart.smartschool.cd).
+    // Ignoré sur les domaines *.vercel.app (déploiement direct, pas encore de
+    // vrais sous-domaines par établissement) : sinon le nom du déploiement
+    // lui-même (ex: "smartschool-deploy-web") est envoyé comme si c'était un
+    // slug d'établissement, et bloque toute connexion avec une 404 "établissement
+    // introuvable" puisqu'aucun tenant ne porte ce nom.
     const hostname = window.location.hostname;
+    const isVercelHost = hostname.endsWith('.vercel.app');
     const subdomain = hostname.split('.')[0];
-    if (subdomain && subdomain !== 'localhost' && subdomain !== 'www') {
+    if (!isVercelHost && subdomain && subdomain !== 'localhost' && subdomain !== 'www') {
       config.headers['X-Tenant-Id'] = subdomain;
     } else {
       // Développement: on envoie le tenantId (UUID) depuis le store persisté

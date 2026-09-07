@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { Loader2, Mail, Lock, GraduationCap } from 'lucide-react';
 import { useAuthStore } from '@/store/auth.store';
 import toast from 'react-hot-toast';
@@ -127,10 +128,14 @@ export function LoginForm() {
             </form>
           </CardContent>
 
-          <CardFooter className="pt-0">
+          <CardFooter className="pt-0 flex-col gap-2">
             <p className="text-xs text-slate-500 text-center w-full">
               Mot de passe oublié ?{' '}
               <span className="text-blue-400 cursor-pointer hover:underline">Contactez votre administrateur</span>
+            </p>
+            <p className="text-xs text-slate-500 text-center w-full">
+              Nouvel établissement ?{' '}
+              <Link href="/register" className="text-blue-400 hover:underline">Créer un compte</Link>
             </p>
           </CardFooter>
         </Card>

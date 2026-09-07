@@ -11,9 +11,12 @@ parentApi.interceptors.request.use((config) => {
     const token = getParentToken();
     if (token) config.headers.Authorization = `Bearer ${token}`;
 
+    // Voir lib/api.ts pour le détail : ignoré sur *.vercel.app pour ne pas
+    // envoyer le nom du déploiement comme s'il s'agissait d'un slug d'établissement.
     const hostname = window.location.hostname;
+    const isVercelHost = hostname.endsWith('.vercel.app');
     const subdomain = hostname.split('.')[0];
-    if (subdomain && subdomain !== 'localhost' && subdomain !== 'www') {
+    if (!isVercelHost && subdomain && subdomain !== 'localhost' && subdomain !== 'www') {
       config.headers['X-Tenant-Id'] = subdomain;
     } else {
       try {
