@@ -58,7 +58,7 @@ export class AutismeService {
     await this.verifierReferences(tenantId, data.eleveId, data.therapeuteId);
 
     return this.prisma.therapie.create({
-      data: { ...data, tenantId },
+      data: { ...data, tenantId, dateSeance: new Date(data.dateSeance) },
     });
   }
 
