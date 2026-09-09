@@ -27,9 +27,9 @@ function ClasseDialog({ open, onClose }: { open: boolean; onClose: () => void })
   const [niveau, setNiveau] = useState('');
   const [capacite, setCapacite] = useState('');
   const mutation = useMutation({
-    mutationFn: () => api.post('/api/v1/academique/classes', { nom, niveau, capacite: capacite ? Number(capacite) : undefined }),
+    mutationFn: () => api.post('/api/v1/academique/classes', { nom, niveau, effectifMax: capacite ? Number(capacite) : undefined }),
     onSuccess: () => { toast.success('Classe créée'); qc.invalidateQueries({ queryKey: ['classes'] }); onClose(); setNom(''); setNiveau(''); setCapacite(''); },
-    onError: () => toast.error('Erreur lors de la création'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erreur lors de la création'),
   });
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
