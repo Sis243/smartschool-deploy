@@ -102,7 +102,7 @@ function EmpruntDialog({ open, onClose, livre }: { open: boolean; onClose: () =>
   const { data: eleves = [] } = useQuery({
     queryKey: ['eleves-mini'],
     enabled: open,
-    queryFn: async () => (await api.get('/api/v1/eleves?limit=100')).data.data?.data ?? [],
+    queryFn: async () => (await api.get('/api/v1/eleves?limit=100')).data.data ?? [],
   });
 
   const mutation = useMutation({

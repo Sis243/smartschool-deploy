@@ -77,7 +77,7 @@ function AbonnementDialog({ open, onClose }: { open: boolean; onClose: () => voi
   const { data: eleves = [] } = useQuery({
     queryKey: ['eleves-mini'],
     enabled: open,
-    queryFn: async () => (await api.get('/api/v1/eleves?limit=100')).data.data?.data ?? [],
+    queryFn: async () => (await api.get('/api/v1/eleves?limit=100')).data.data ?? [],
   });
   const { data: bus = [] } = useQuery({
     queryKey: ['bus'],

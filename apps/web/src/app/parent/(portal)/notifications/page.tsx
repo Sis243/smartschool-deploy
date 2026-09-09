@@ -16,7 +16,7 @@ export default function ParentNotificationsPage() {
 
   useEffect(() => {
     parentApi.get('/api/v1/parent/notifications')
-      .then((r) => setNotifs(r.data.data?.data ?? []))
+      .then((r) => setNotifs(r.data.data ?? []))
       .finally(() => setLoading(false));
   }, []);
 
