@@ -35,28 +35,22 @@ export class ParentPortalController {
 
   // ── Public auth endpoints ─────────────────────────────────────────────────
 
+  // Pas de tenant résolu ici (pas de sous-domaine par école pour l'instant) —
+  // le service retrouve l'école à partir de l'accessCode/téléphone lui-même
+  // et vérifie que le module PARENT_PORTAL y est actif (voir ParentPortalService).
+
   @Post('auth/activer')
-  @UseGuards(ModuleActifGuard)
-  @RequireModule('PARENT_PORTAL')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Activer le portail parent avec le code d\'accès' })
-  activer(
-    @CurrentTenant('id') tenantId: string,
-    @Body() body: { accessCode: string; telephone: string; pin: string },
-  ) {
-    return this.service.activerPortail(tenantId, body.accessCode, body.telephone, body.pin);
+  activer(@Body() body: { accessCode: string; telephone: string; pin: string }) {
+    return this.service.activerPortail(body.accessCode, body.telephone, body.pin);
   }
 
   @Post('auth/login')
-  @UseGuards(ModuleActifGuard)
-  @RequireModule('PARENT_PORTAL')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Connexion parent par téléphone + PIN' })
-  login(
-    @CurrentTenant('id') tenantId: string,
-    @Body() body: { telephone: string; pin: string },
-  ) {
-    return this.service.login(tenantId, body.telephone, body.pin);
+  login(@Body() body: { telephone: string; pin: string }) {
+    return this.service.login(body.telephone, body.pin);
   }
 
   // ── Authenticated parent endpoints ────────────────────────────────────────

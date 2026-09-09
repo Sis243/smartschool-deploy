@@ -10,26 +10,20 @@ api.interceptors.request.use((config) => {
     const token = localStorage.getItem('access_token');
     if (token) config.headers.Authorization = `Bearer ${token}`;
 
-    // Production: résolution via sous-domaine (bondepart.smartschool.cd).
-    // Ignoré sur les domaines *.vercel.app (déploiement direct, pas encore de
-    // vrais sous-domaines par établissement) : sinon le nom du déploiement
-    // lui-même (ex: "smartschool-deploy-web") est envoyé comme si c'était un
-    // slug d'établissement, et bloque toute connexion avec une 404 "établissement
-    // introuvable" puisqu'aucun tenant ne porte ce nom.
+    // Résolution via sous-domaine (bondepart.smartschool.cd) UNIQUEMENT.
+    // Ignoré sur *.vercel.app (pas encore de vrais sous-domaines par
+    // établissement) — le tenant vient alors exclusivement du JWT
+    // (JwtAuthGuard), jamais d'un id stocké côté client : un ancien tenantId
+    // laissé dans le localStorage d'une session précédente est un cuid, pas
+    // un slug — le middleware le cherche dans la mauvaise colonne et
+    // renvoie 404 "établissement introuvable" sur CHAQUE requête (y compris
+    // /auth/login), ce qui bloquait la connexion et toutes les actions tant
+    // qu'un ancien identifiant traînait dans le navigateur.
     const hostname = window.location.hostname;
     const isVercelHost = hostname.endsWith('.vercel.app');
     const subdomain = hostname.split('.')[0];
     if (!isVercelHost && subdomain && subdomain !== 'localhost' && subdomain !== 'www') {
       config.headers['X-Tenant-Id'] = subdomain;
-    } else {
-      // Développement: on envoie le tenantId (UUID) depuis le store persisté
-      try {
-        const stored = localStorage.getItem('smartschool-auth');
-        if (stored) {
-          const tenantId = JSON.parse(stored)?.state?.user?.tenantId;
-          if (tenantId) config.headers['X-Tenant-Id'] = tenantId;
-        }
-      } catch {}
     }
   }
   return config;

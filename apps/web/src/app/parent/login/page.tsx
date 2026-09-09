@@ -7,18 +7,6 @@ import { setParentSession } from '@/lib/parent-auth';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-function getTenantId(): string {
-  if (typeof window === 'undefined') return '';
-  const hostname = window.location.hostname;
-  const sub = hostname.split('.')[0];
-  if (sub && sub !== 'localhost' && sub !== 'www') return sub;
-  try {
-    const s = localStorage.getItem('smartschool-auth');
-    if (s) return JSON.parse(s)?.state?.user?.tenantId ?? '';
-  } catch {}
-  return '';
-}
-
 type Mode = 'login' | 'activer';
 
 export default function ParentLoginPage() {
@@ -29,8 +17,6 @@ export default function ParentLoginPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const headers = { 'X-Tenant-Id': getTenantId() };
-
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setError('');
@@ -39,7 +25,6 @@ export default function ParentLoginPage() {
       const { data } = await axios.post(
         `${API}/api/v1/parent/auth/login`,
         { telephone: form.telephone, pin: form.pin },
-        { headers },
       );
       setParentSession(data.data.accessToken, data.data.parent);
       router.push('/parent/dashboard');
@@ -66,7 +51,6 @@ export default function ParentLoginPage() {
       await axios.post(
         `${API}/api/v1/parent/auth/activer`,
         { accessCode: form.accessCode, telephone: form.telephone, pin: form.pin },
-        { headers },
       );
       setSuccess('Portail activé ! Vous pouvez maintenant vous connecter.');
       setMode('login');

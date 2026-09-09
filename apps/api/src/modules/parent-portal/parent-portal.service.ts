@@ -21,12 +21,21 @@ export class ParentPortalService {
   ) {}
 
   // ── Auth ──────────────────────────────────────────────────────────────────
+  // Aucune de ces deux routes ne dépend d'un tenant résolu par le serveur
+  // (sous-domaine/en-tête) : l'application tourne sur un seul domaine partagé
+  // (pas encore de sous-domaine par école), donc le tenant est retrouvé à
+  // partir des identifiants eux-mêmes — accessCode est unique globalement,
+  // et pour le login on recherche parmi tous les parents ayant ce téléphone.
 
-  async activerPortail(tenantId: string, accessCode: string, telephone: string, pin: string) {
+  async activerPortail(accessCode: string, telephone: string, pin: string) {
     const parent = await this.prisma.parent.findFirst({
-      where: { tenantId, accessCode, telephone },
+      where: { accessCode, telephone },
+      include: { tenant: { select: { modulesActifs: true } } },
     });
     if (!parent) throw new BadRequestException('Code d\'accès ou téléphone invalide');
+    if (!parent.tenant.modulesActifs.includes('PARENT_PORTAL')) {
+      throw new BadRequestException("Le portail parent n'est pas activé pour cet établissement");
+    }
     if (parent.portalActif) throw new BadRequestException('Portail déjà activé');
 
     const pinHash = await bcrypt.hash(pin, 10);
@@ -38,32 +47,33 @@ export class ParentPortalService {
     return { message: 'Portail activé avec succès' };
   }
 
-  async login(tenantId: string, telephone: string, pin: string) {
-    const parent = await this.prisma.parent.findFirst({
-      where: { tenantId, telephone },
+  async login(telephone: string, pin: string) {
+    const candidats = await this.prisma.parent.findMany({
+      where: { telephone, portalActif: true, pin: { not: null } },
+      include: { tenant: { select: { modulesActifs: true, isActive: true } } },
     });
-    if (!parent || !parent.portalActif || !parent.pin) {
-      throw new UnauthorizedException('Téléphone ou PIN incorrect');
+
+    for (const parent of candidats) {
+      if (!parent.pin) continue;
+      const valid = await bcrypt.compare(pin, parent.pin);
+      if (!valid) continue;
+      if (!parent.tenant.isActive || !parent.tenant.modulesActifs.includes('PARENT_PORTAL')) {
+        throw new UnauthorizedException("Le portail parent n'est plus accessible pour cet établissement");
+      }
+
+      const payload = { sub: parent.id, tenantId: parent.tenantId, type: 'parent' };
+      return {
+        accessToken: this.jwtService.sign(payload, { expiresIn: '30d' }),
+        parent: {
+          id: parent.id,
+          nom: parent.nom,
+          prenom: parent.prenom,
+          telephone: parent.telephone,
+        },
+      };
     }
 
-    const valid = await bcrypt.compare(pin, parent.pin);
-    if (!valid) throw new UnauthorizedException('Téléphone ou PIN incorrect');
-
-    const payload = {
-      sub: parent.id,
-      tenantId: parent.tenantId,
-      type: 'parent',
-    };
-
-    return {
-      accessToken: this.jwtService.sign(payload, { expiresIn: '30d' }),
-      parent: {
-        id: parent.id,
-        nom: parent.nom,
-        prenom: parent.prenom,
-        telephone: parent.telephone,
-      },
-    };
+    throw new UnauthorizedException('Téléphone ou PIN incorrect');
   }
 
   // ── Dashboard ─────────────────────────────────────────────────────────────
