@@ -5,10 +5,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotifParentService } from '../notif-parent/notif-parent.service';
 import { FinancesService } from '../finances/finances.service';
+import { BrevoService } from '../../common/services/brevo.service';
+import { buildEmailHtml } from '../../common/services/email-template';
 import { StatutPreuve } from '@prisma/client';
 
 @Injectable()
@@ -18,6 +21,8 @@ export class ParentPortalService {
     private readonly jwtService: JwtService,
     private readonly notifService: NotifParentService,
     private readonly financesService: FinancesService,
+    private readonly brevo: BrevoService,
+    private readonly configService: ConfigService,
   ) {}
 
   // ── Auth ──────────────────────────────────────────────────────────────────
@@ -245,8 +250,16 @@ export class ParentPortalService {
   // ── Admin: générer code d'accès pour un parent ────────────────────────────
 
   async genererAccessCode(tenantId: string, parentId: string) {
-    const parent = await this.prisma.parent.findFirst({ where: { id: parentId, tenantId } });
+    const parent = await this.prisma.parent.findFirst({
+      where: { id: parentId, tenantId },
+      include: { tenant: { select: { name: true } } },
+    });
     if (!parent) throw new NotFoundException('Parent introuvable');
+    if (!parent.email) {
+      throw new BadRequestException(
+        "Ce parent n'a pas d'adresse e-mail enregistrée — le code d'accès est envoyé par e-mail, ajoutez-en une d'abord.",
+      );
+    }
 
     const code = Math.random().toString(36).substring(2, 8).toUpperCase();
     await this.prisma.parent.update({
@@ -254,15 +267,29 @@ export class ParentPortalService {
       data: { accessCode: code, portalActif: false, pin: null },
     });
 
-    // Notify by SMS
-    await this.notifService.send({
-      tenantId,
-      parentId,
-      canal: 'SMS',
-      titre: 'Votre code d\'accès SmartSchool',
-      message: `Votre code d'accès au portail parent SmartSchool est : ${code}. Activez votre compte sur l'application.`,
+    const frontendUrl = this.configService.get<string>('frontendUrl');
+    const lien = `${frontendUrl}/parent/login?mode=activer&code=${code}`;
+    const html = buildEmailHtml({
+      titre: 'Accédez au suivi scolaire de votre enfant',
+      etablissement: parent.tenant.name,
+      paragraphes: [
+        `Bonjour ${parent.prenom},`,
+        `${parent.tenant.name} vous invite à activer votre accès au portail parent SmartSchool : notes, présences, factures et notifications de votre enfant, directement depuis votre téléphone.`,
+        `Cliquez sur le bouton ci-dessous, indiquez votre numéro de téléphone et choisissez un code PIN personnel pour terminer l'activation.`,
+      ],
+      ctaLabel: 'Activer mon accès parent',
+      ctaUrl: lien,
+      note: `Votre code d'accès : ${code}. Une fois la page ouverte, vous pourrez aussi installer l'application sur votre téléphone en un clic.`,
     });
 
-    return { accessCode: code };
+    const envoye = await this.brevo.sendEmail(
+      parent.email,
+      `Votre accès au portail parent — ${parent.tenant.name}`,
+      `Bonjour ${parent.prenom},\n\n${parent.tenant.name} vous invite à activer votre accès au portail parent SmartSchool.\nVotre code d'accès : ${code}\nActivez votre compte ici : ${lien}`,
+      parent.tenant.name,
+      html,
+    );
+
+    return { accessCode: code, envoye };
   }
 }

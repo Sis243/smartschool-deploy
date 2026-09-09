@@ -62,10 +62,11 @@ export class CreateParentDto {
   @IsString()
   telephone: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  // Obligatoire : le code d'accès au portail parent est envoyé par e-mail
+  // (voir ParentPortalService.genererAccessCode), pas par SMS.
+  @ApiProperty({ example: 'alice.mutamba@example.com' })
   @IsEmail()
-  email?: string;
+  email: string;
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -54,7 +54,7 @@ function NouveauParentDialog({
 
   const mutation = useMutation({
     mutationFn: () => api.post('/api/v1/eleves/parents', {
-      prenom: form.prenom, nom: form.nom, telephone: form.telephone, email: form.email || undefined,
+      prenom: form.prenom, nom: form.nom, telephone: form.telephone, email: form.email,
     }),
     onSuccess: (res: any) => {
       toast.success('Parent ajouté');
@@ -65,7 +65,8 @@ function NouveauParentDialog({
     onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erreur lors de l\'ajout'),
   });
 
-  const valide = form.prenom.trim() && form.nom.trim() && form.telephone.trim();
+  const emailValide = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim());
+  const valide = form.prenom.trim() && form.nom.trim() && form.telephone.trim() && emailValide;
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -87,8 +88,9 @@ function NouveauParentDialog({
             <Input placeholder="+243 8XX XXX XXX" value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} />
           </div>
           <div className="space-y-1.5">
-            <Label>Email</Label>
-            <Input type="email" placeholder="Optionnel" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            <Label>Email *</Label>
+            <Input type="email" placeholder="ex: alice@example.com" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            <p className="text-xs text-muted-foreground">Obligatoire — le code d&apos;accès au portail parent est envoyé à cette adresse.</p>
           </div>
         </div>
         <DialogFooter>
@@ -675,16 +677,21 @@ export function ElevesTable() {
                                 onClick={async () => {
                                   try {
                                     const r = await api.post(`/api/v1/parent/admin/parents/${eleve.parentId}/access-code`);
-                                    toast.success(`Code portail parent : ${r.data.data.accessCode} — envoyé par SMS`);
-                                  } catch {
-                                    toast.error('Erreur génération code');
+                                    toast.success(
+                                      r.data.data.envoye
+                                        ? `Lien d'activation envoyé par e-mail au parent (code : ${r.data.data.accessCode})`
+                                        : `L'e-mail n'a pas pu être envoyé — code à transmettre manuellement : ${r.data.data.accessCode}`,
+                                      { duration: 7000 },
+                                    );
+                                  } catch (e: any) {
+                                    toast.error(e?.response?.data?.message ?? 'Erreur génération code');
                                   }
                                 }}
                               >
                                 <KeyRound className="w-3.5 h-3.5" />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Générer code portail parent</TooltipContent>
+                            <TooltipContent>Envoyer le lien d&apos;activation du portail parent (par e-mail)</TooltipContent>
                           </Tooltip>
                         )}
                         <Tooltip delayDuration={0}>

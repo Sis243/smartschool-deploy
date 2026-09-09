@@ -1,21 +1,33 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import axios from 'axios';
 import { setParentSession } from '@/lib/parent-auth';
+import { InstallPwaButton } from '@/components/install-pwa-button';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
 type Mode = 'login' | 'activer';
 
-export default function ParentLoginPage() {
+function ParentLoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<Mode>('login');
   const [form, setForm] = useState({ telephone: '', pin: '', accessCode: '', pinConfirm: '' });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  // Lien reçu par e-mail (?mode=activer&code=ABC123) : on ouvre directement
+  // l'onglet d'activation avec le code déjà rempli.
+  useEffect(() => {
+    const code = searchParams.get('code');
+    if (code) {
+      setForm((f) => ({ ...f, accessCode: code.toUpperCase() }));
+      setMode('activer');
+    }
+  }, [searchParams]);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
@@ -76,9 +88,9 @@ export default function ParentLoginPage() {
           <p className="text-sm text-gray-500 mt-1">Portail Parent</p>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xl p-6">
+        <div className="bg-white rounded-2xl shadow-xl p-6 space-y-5">
           {/* Tabs */}
-          <div className="flex rounded-xl bg-gray-100 p-1 mb-6">
+          <div className="flex rounded-xl bg-gray-100 p-1">
             {(['login', 'activer'] as Mode[]).map((m) => (
               <button
                 key={m}
@@ -93,12 +105,12 @@ export default function ParentLoginPage() {
           </div>
 
           {success && (
-            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
+            <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
               {success}
             </div>
           )}
           {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
               {error}
             </div>
           )}
@@ -143,7 +155,7 @@ export default function ParentLoginPage() {
             <form onSubmit={handleActiver} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Code d&apos;accès (fourni par l&apos;école)
+                  Code d&apos;accès (reçu par e-mail)
                 </label>
                 <input
                   type="text"
@@ -207,6 +219,8 @@ export default function ParentLoginPage() {
               </button>
             </form>
           )}
+
+          <InstallPwaButton />
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-6">
@@ -214,5 +228,13 @@ export default function ParentLoginPage() {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function ParentLoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <ParentLoginForm />
+    </Suspense>
   );
 }
