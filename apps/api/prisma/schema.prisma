@@ -734,8 +734,8 @@ model NotificationDestinataire {
   envoyeAt       DateTime?
 
   notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
-  user         User?         @relation(fields: [userId], references: [id])
-  parent       Parent?       @relation(fields: [parentId], references: [id])
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent       Parent?       @relation(fields: [parentId], references: [id], onDelete: Cascade)
 
   @@map("notification_destinataires")
 }
