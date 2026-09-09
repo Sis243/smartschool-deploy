@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Put, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { ElevesService } from './eleves.service';
-import { CreateEleveDto, UpdateEleveDto, EnregistrerVisageDto } from './dto/eleve.dto';
+import { CreateEleveDto, UpdateEleveDto, EnregistrerVisageDto, CreateParentDto } from './dto/eleve.dto';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -31,6 +31,14 @@ export class ElevesController {
   @ApiOperation({ summary: 'Lister les parents du tenant' })
   getParents(@CurrentTenant('id') tenantId: string) {
     return this.elevesService.getParents(tenantId);
+  }
+
+  @Post('parents')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTEUR', 'SECRETAIRE')
+  @ApiOperation({ summary: 'Créer un parent/tuteur' })
+  createParent(@CurrentTenant('id') tenantId: string, @Body() dto: CreateParentDto) {
+    return this.elevesService.createParent(tenantId, dto);
   }
 
   @Get('avec-visage')

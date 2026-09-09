@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateEleveDto, UpdateEleveDto, EnregistrerVisageDto } from './dto/eleve.dto';
+import { CreateEleveDto, UpdateEleveDto, EnregistrerVisageDto, CreateParentDto } from './dto/eleve.dto';
 
 @Injectable()
 export class ElevesService {
@@ -157,8 +157,22 @@ export class ElevesService {
   async getParents(tenantId: string) {
     return this.prisma.parent.findMany({
       where: { tenantId },
-      select: { id: true, nom: true, telephone: true, email: true },
+      select: { id: true, nom: true, prenom: true, telephone: true, email: true },
       orderBy: { nom: 'asc' },
+    });
+  }
+
+  async createParent(tenantId: string, dto: CreateParentDto) {
+    return this.prisma.parent.create({
+      data: {
+        tenantId,
+        nom: dto.nom,
+        prenom: dto.prenom,
+        telephone: dto.telephone,
+        email: dto.email,
+        adresse: dto.adresse,
+      },
+      select: { id: true, nom: true, prenom: true, telephone: true, email: true },
     });
   }
 

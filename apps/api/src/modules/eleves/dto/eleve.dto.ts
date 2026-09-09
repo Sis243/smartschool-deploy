@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsIn, IsDateString, IsArray, IsNumber } from 'class-validator';
+import { IsString, IsOptional, IsIn, IsDateString, IsArray, IsNumber, IsEmail } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
 
 export class CreateEleveDto {
@@ -48,6 +48,30 @@ export class CreateEleveDto {
 }
 
 export class UpdateEleveDto extends PartialType(CreateEleveDto) {}
+
+export class CreateParentDto {
+  @ApiProperty({ example: 'Mutamba' })
+  @IsString()
+  nom: string;
+
+  @ApiProperty({ example: 'Alice' })
+  @IsString()
+  prenom: string;
+
+  @ApiProperty({ example: '+243812345678' })
+  @IsString()
+  telephone: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEmail()
+  email?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  adresse?: string;
+}
 
 export class EnregistrerVisageDto {
   @ApiProperty({ description: 'URL de la photo de référence (voir POST /uploads/photo-eleve)' })

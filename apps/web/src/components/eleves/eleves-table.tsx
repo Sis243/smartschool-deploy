@@ -45,6 +45,63 @@ const eleveSchema = z.object({
 
 type EleveForm = z.infer<typeof eleveSchema>;
 
+// ─── Dialog Nouveau parent ───────────────────────────────────────────────────
+function NouveauParentDialog({
+  open, onClose, onCreated,
+}: { open: boolean; onClose: () => void; onCreated: (parent: any) => void }) {
+  const qc = useQueryClient();
+  const [form, setForm] = useState({ prenom: '', nom: '', telephone: '', email: '' });
+
+  const mutation = useMutation({
+    mutationFn: () => api.post('/api/v1/eleves/parents', {
+      prenom: form.prenom, nom: form.nom, telephone: form.telephone, email: form.email || undefined,
+    }),
+    onSuccess: (res: any) => {
+      toast.success('Parent ajouté');
+      qc.invalidateQueries({ queryKey: ['parents'] });
+      onCreated(res.data.data);
+      setForm({ prenom: '', nom: '', telephone: '', email: '' });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erreur lors de l\'ajout'),
+  });
+
+  const valide = form.prenom.trim() && form.nom.trim() && form.telephone.trim();
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Nouveau parent / tuteur</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Prénom *</Label>
+              <Input placeholder="ex: Alice" value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.target.value })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Nom *</Label>
+              <Input placeholder="ex: Mutamba" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Téléphone *</Label>
+            <Input placeholder="+243 8XX XXX XXX" value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Email</Label>
+            <Input type="email" placeholder="Optionnel" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Annuler</Button>
+          <Button onClick={() => mutation.mutate()} disabled={!valide || mutation.isPending} className="bg-blue-600 hover:bg-blue-500">
+            {mutation.isPending ? 'Ajout...' : 'Ajouter le parent'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Dialog Nouvel élève ─────────────────────────────────────────────────────
 
 function NouvelEleveDialog({
@@ -63,8 +120,9 @@ function NouvelEleveDialog({
     queryFn: async () => (await api.get('/api/v1/eleves/parents')).data.data,
     enabled: open,
   });
+  const [parentDialogOpen, setParentDialogOpen] = useState(false);
 
-  const { register, handleSubmit, setValue, reset, formState: { errors } } = useForm<EleveForm>({
+  const { register, handleSubmit, setValue, watch, reset, formState: { errors } } = useForm<EleveForm>({
     resolver: zodResolver(eleveSchema),
     defaultValues: eleveToEdit ? {
       prenom: eleveToEdit.prenom,
@@ -78,6 +136,7 @@ function NouvelEleveDialog({
       parentId: eleveToEdit.parentId,
     } : { genre: 'MASCULIN' },
   });
+  const watchParentId = watch('parentId');
 
   const mutation = useMutation({
     mutationFn: (data: EleveForm) =>
@@ -94,7 +153,13 @@ function NouvelEleveDialog({
   });
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+    <>
+      <NouveauParentDialog
+        open={parentDialogOpen}
+        onClose={() => setParentDialogOpen(false)}
+        onCreated={(parent) => { setValue('parentId', parent.id); setParentDialogOpen(false); }}
+      />
+      <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{eleveToEdit ? 'Modifier l\'élève' : 'Inscrire un nouvel élève'}</DialogTitle>
@@ -170,14 +235,22 @@ function NouvelEleveDialog({
               </div>
               <div className="space-y-1.5">
                 <Label>Parent / Tuteur</Label>
-                <Select onValueChange={(v) => setValue('parentId', v)}>
-                  <SelectTrigger><SelectValue placeholder="Choisir un parent" /></SelectTrigger>
-                  <SelectContent>
-                    {(parents ?? []).map((p: any) => (
-                      <SelectItem key={p.id} value={p.id}>{p.nom} — {p.telephone}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="flex gap-2">
+                  <Select value={watchParentId} onValueChange={(v) => setValue('parentId', v)}>
+                    <SelectTrigger><SelectValue placeholder="Choisir un parent" /></SelectTrigger>
+                    <SelectContent>
+                      {(parents ?? []).map((p: any) => (
+                        <SelectItem key={p.id} value={p.id}>{p.prenom} {p.nom} — {p.telephone}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" variant="outline" size="icon" className="shrink-0" onClick={() => setParentDialogOpen(true)}>
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+                {(parents ?? []).length === 0 && (
+                  <p className="text-xs text-muted-foreground">Aucun parent enregistré — cliquez sur + pour en ajouter un.</p>
+                )}
               </div>
             </div>
           </div>
@@ -190,7 +263,8 @@ function NouvelEleveDialog({
           </DialogFooter>
         </form>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+    </>
   );
 }
 
