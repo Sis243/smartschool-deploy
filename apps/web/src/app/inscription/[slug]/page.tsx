@@ -191,8 +191,9 @@ export default function InscriptionPage({ params }: { params: Promise<{ slug: st
                   <Input placeholder="+243 812 345 678" value={parent.telephone} onChange={e => setParent({ ...parent, telephone: e.target.value })} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Email</Label>
+                  <Label>Email *</Label>
                   <Input type="email" placeholder="email@exemple.com" value={parent.email} onChange={e => setParent({ ...parent, email: e.target.value })} />
+                  <p className="text-xs text-muted-foreground">L&apos;école vous enverra à cette adresse le lien d&apos;accès au suivi de votre enfant.</p>
                 </div>
                 <div className="space-y-1.5">
                   <Label>Adresse</Label>
@@ -214,7 +215,7 @@ export default function InscriptionPage({ params }: { params: Promise<{ slug: st
                     <ChevronLeft className="w-4 h-4" /> Retour
                   </Button>
                   <Button className="flex-1 bg-blue-600 hover:bg-blue-500 gap-2"
-                    disabled={!parent.prenomParent || !parent.nomParent || !parent.telephone}
+                    disabled={!parent.prenomParent || !parent.nomParent || !parent.telephone || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(parent.email)}
                     onClick={() => setStep('confirmation')}>
                     Suivant <ChevronRight className="w-4 h-4" />
                   </Button>

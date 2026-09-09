@@ -58,11 +58,11 @@ export class SoumettreInscriptionDto {
   @IsString()
   telephone: string;
 
-  @ApiPropertyOptional()
-  @Transform(emptyToUndefined)
-  @IsOptional()
+  // Obligatoire : c'est à cette adresse que l'école enverra plus tard le lien
+  // d'activation du portail parent (voir ParentPortalService.genererAccessCode).
+  @ApiProperty()
   @IsEmail()
-  email?: string;
+  email: string;
 
   @ApiPropertyOptional()
   @Transform(emptyToUndefined)
