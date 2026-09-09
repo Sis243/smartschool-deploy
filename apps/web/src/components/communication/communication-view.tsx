@@ -54,14 +54,14 @@ function ComposerTab() {
 
   const send = useMutation({
     mutationFn: () => api.post('/api/v1/communication/notifications', {
-      titre, contenu, canaux, destinataires,
+      titre, contenu, canaux, destinataires, cible: cible === 'personnel' ? 'personnel' : 'parents',
     }),
     onSuccess: () => {
-      toast.success(`Notification envoyée à ${destinataires.length} destinataire(s)`);
+      toast.success(`Envoi lancé vers ${destinataires.length} destinataire(s) — voir l'historique pour le statut de livraison`);
       qc.invalidateQueries({ queryKey: ['notifications'] });
       setTitre(''); setContenu('');
     },
-    onError: () => toast.error('Erreur lors de l\'envoi'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erreur lors de l\'envoi'),
   });
 
   return (

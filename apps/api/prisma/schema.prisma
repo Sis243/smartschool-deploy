@@ -270,6 +270,7 @@ model Parent {
   eleves        Eleve[]
   notifParents  NotifParent[]
   preuves       PreuvePaiement[]
+  notificationsRecues NotificationDestinataire[]
 
   @@map("parents")
 }
@@ -724,13 +725,17 @@ model Notification {
 model NotificationDestinataire {
   id             String            @id @default(cuid())
   notificationId String
-  userId         String
+  // L'un ou l'autre selon la cible du message (personnel vs parents) — jamais
+  // les deux à la fois. Voir CommunicationService.envoyerNotification.
+  userId         String?
+  parentId       String?
   canal          CanalNotification
   statut         String            @default("EN_ATTENTE")
   envoyeAt       DateTime?
 
   notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
-  user         User         @relation(fields: [userId], references: [id])
+  user         User?         @relation(fields: [userId], references: [id])
+  parent       Parent?       @relation(fields: [parentId], references: [id])
 
   @@map("notification_destinataires")
 }

@@ -1,6 +1,9 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BrevoService } from '../../common/services/brevo.service';
+
+type Cible = 'personnel' | 'parents';
+type Canal = 'SMS' | 'EMAIL' | 'PUSH' | 'WHATSAPP';
 
 @Injectable()
 export class CommunicationService {
@@ -8,40 +11,51 @@ export class CommunicationService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
+    private readonly brevo: BrevoService,
   ) {}
 
   async envoyerNotification(tenantId: string, data: {
     titre: string;
     contenu: string;
     destinataires: string[];
-    canaux: Array<'SMS' | 'EMAIL' | 'PUSH' | 'WHATSAPP'>;
+    canaux: Canal[];
+    cible: Cible;
   }) {
+    if (data.cible !== 'personnel' && data.cible !== 'parents') {
+      throw new BadRequestException('cible doit être "personnel" ou "parents"');
+    }
+
     // Les destinataires viennent du client : sans ce contrôle, un utilisateur
-    // pourrait faire "envoyer" un message à un userId d'un autre établissement
-    // (et une fois un vrai fournisseur SMS/email branché, réellement le joindre).
-    const destinatairesValides = await this.prisma.user.findMany({
-      where: { id: { in: data.destinataires }, tenantId },
-      select: { id: true },
-    });
-    if (destinatairesValides.length !== new Set(data.destinataires).size) {
-      throw new NotFoundException('Un ou plusieurs destinataires sont introuvables pour cet établissement');
+    // pourrait faire "envoyer" un message à un id d'un autre établissement.
+    const idsUniques = [...new Set(data.destinataires)];
+    if (data.cible === 'personnel') {
+      const valides = await this.prisma.user.findMany({
+        where: { id: { in: idsUniques }, tenantId },
+        select: { id: true },
+      });
+      if (valides.length !== idsUniques.length) {
+        throw new NotFoundException('Un ou plusieurs destinataires sont introuvables pour cet établissement');
+      }
+    } else {
+      const valides = await this.prisma.parent.findMany({
+        where: { id: { in: idsUniques }, tenantId },
+        select: { id: true },
+      });
+      if (valides.length !== idsUniques.length) {
+        throw new NotFoundException('Un ou plusieurs destinataires sont introuvables pour cet établissement');
+      }
     }
 
     const notification = await this.prisma.notification.create({
-      data: {
-        titre: data.titre,
-        contenu: data.contenu,
-        tenantId,
-        statut: 'EN_COURS',
-      },
+      data: { titre: data.titre, contenu: data.contenu, tenantId, statut: 'EN_COURS' },
     });
 
     await this.prisma.notificationDestinataire.createMany({
       data: data.canaux.flatMap((canal) =>
-        data.destinataires.map((userId) => ({
+        idsUniques.map((id) => ({
           notificationId: notification.id,
-          userId,
+          userId: data.cible === 'personnel' ? id : undefined,
+          parentId: data.cible === 'parents' ? id : undefined,
           canal,
           statut: 'EN_ATTENTE',
         })),
@@ -57,28 +71,43 @@ export class CommunicationService {
   }
 
   private async traiterNotifications(notificationId: string, tenantId: string) {
-    const destinataires = await this.prisma.notificationDestinataire.findMany({
-      where: { notificationId, statut: 'EN_ATTENTE' },
-      include: {
-        user: { select: { email: true, phone: true } },
-        notification: { select: { titre: true, contenu: true } },
-      },
-    });
+    const [destinataires, tenant] = await Promise.all([
+      this.prisma.notificationDestinataire.findMany({
+        where: { notificationId, statut: 'EN_ATTENTE' },
+        include: {
+          user: { select: { email: true, phone: true } },
+          parent: { select: { email: true, telephone: true } },
+          notification: { select: { titre: true, contenu: true } },
+        },
+      }),
+      this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true } }),
+    ]);
 
     for (const dest of destinataires) {
+      const contact = dest.user ?? dest.parent;
+      const email = contact && 'email' in contact ? contact.email : undefined;
+      const telephone = dest.user?.phone ?? dest.parent?.telephone;
+      const texte = `${dest.notification.titre}\n${dest.notification.contenu}`;
+
+      let envoye = false;
       try {
-        // Simuler l'envoi (à implémenter avec Twilio/Nodemailer)
-        this.logger.log(`Envoi ${dest.canal} à ${dest.user.email || dest.user.phone}`);
-        await this.prisma.notificationDestinataire.update({
-          where: { id: dest.id },
-          data: { statut: 'ENVOYE', envoyeAt: new Date() },
-        });
+        if (dest.canal === 'EMAIL' && email) {
+          envoye = await this.brevo.sendEmail(email, dest.notification.titre, texte, tenant?.name);
+        } else if (dest.canal === 'SMS' && telephone) {
+          envoye = await this.brevo.sendSms(telephone, texte, tenant?.name);
+        } else if (dest.canal === 'WHATSAPP' && telephone) {
+          envoye = await this.brevo.sendWhatsapp(telephone, texte);
+        }
+        // PUSH n'est pas encore implémenté (aucun service de notification
+        // push branché) — échoue proprement plutôt que de prétendre réussir.
       } catch (error) {
-        await this.prisma.notificationDestinataire.update({
-          where: { id: dest.id },
-          data: { statut: 'ECHEC' },
-        });
+        this.logger.error(`Échec envoi ${dest.canal} pour ${dest.id}`, error as Error);
       }
+
+      await this.prisma.notificationDestinataire.update({
+        where: { id: dest.id },
+        data: envoye ? { statut: 'ENVOYE', envoyeAt: new Date() } : { statut: 'ECHEC' },
+      });
     }
 
     await this.prisma.notification.update({
