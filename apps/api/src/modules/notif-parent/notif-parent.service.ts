@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BrevoService } from '../../common/services/brevo.service';
+import { PushService } from '../../common/services/push.service';
 import { CanalNotification } from '@prisma/client';
 
 export interface SendNotifDto {
@@ -16,6 +17,7 @@ export class NotifParentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly brevo: BrevoService,
+    private readonly push: PushService,
   ) {}
 
   async send(dto: SendNotifDto) {
@@ -32,14 +34,21 @@ export class NotifParentService {
     if (parent) {
       const texte = `${dto.titre}\n${dto.message}`;
       let envoye = false;
-      if (dto.canal === 'EMAIL' && parent.email) {
-        envoye = await this.brevo.sendEmail(parent.email, dto.titre, texte, nomExpediteur);
-      } else if (dto.canal === 'SMS') {
-        envoye = await this.brevo.sendSms(parent.telephone, texte, nomExpediteur);
-      } else if (dto.canal === 'WHATSAPP') {
-        envoye = await this.brevo.sendWhatsapp(parent.telephone, texte);
+      // PUSH ne dépend pas de Brevo — son statut réel est déterminé
+      // indépendamment de `brevo.isConfigured` ci-dessous.
+      if (dto.canal === 'PUSH') {
+        envoye = await this.push.sendToRecipient({ parentId: parent.id }, { title: dto.titre, body: dto.message });
+        statut = envoye ? 'ENVOYE' : 'ECHEC';
+      } else {
+        if (dto.canal === 'EMAIL' && parent.email) {
+          envoye = await this.brevo.sendEmail(parent.email, dto.titre, texte, nomExpediteur);
+        } else if (dto.canal === 'SMS') {
+          envoye = await this.brevo.sendSms(parent.telephone, texte, nomExpediteur);
+        } else if (dto.canal === 'WHATSAPP') {
+          envoye = await this.brevo.sendWhatsapp(parent.telephone, texte);
+        }
+        if (this.brevo.isConfigured) statut = envoye ? 'ENVOYE' : 'ECHEC';
       }
-      if (this.brevo.isConfigured) statut = envoye ? 'ENVOYE' : 'ECHEC';
     }
 
     // Statut reste 'SIMULE' si Brevo n'est pas configuré — la notification
@@ -60,7 +69,7 @@ export class NotifParentService {
     const parent = await this.prisma.parent.findUnique({ where: { id: parentId } });
     if (!parent) return;
 
-    const canaux: CanalNotification[] = ['SMS', 'EMAIL', 'WHATSAPP'];
+    const canaux: CanalNotification[] = ['SMS', 'EMAIL', 'WHATSAPP', 'PUSH'];
     await Promise.all(
       canaux.map((canal) => this.send({ tenantId, parentId, canal, titre, message })),
     );

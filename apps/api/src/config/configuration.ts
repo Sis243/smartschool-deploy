@@ -43,5 +43,10 @@ export default () => ({
   cors: {
     origin: process.env.CORS_ORIGIN || '*',
   },
+  push: {
+    publicKey: process.env.VAPID_PUBLIC_KEY,
+    privateKey: process.env.VAPID_PRIVATE_KEY,
+    subject: process.env.VAPID_SUBJECT || 'mailto:notifications@smartschool.cd',
+  },
   frontendUrl: process.env.FRONTEND_URL || 'http://localhost:3000',
 });

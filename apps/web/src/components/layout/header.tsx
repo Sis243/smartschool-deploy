@@ -1,9 +1,11 @@
 'use client';
 
-import { Bell, LogOut, Moon, Sun, Settings, User } from 'lucide-react';
+import { Bell, BellOff, LogOut, Moon, Sun, Settings, User } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useRouter } from 'next/navigation';
+import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/auth.store';
+import { usePushNotifications } from '@/hooks/use-push-notifications';
 import { getInitials } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -22,6 +24,23 @@ export function Header() {
   const { user, logout } = useAuthStore();
   const { theme, setTheme } = useTheme();
   const router = useRouter();
+  const { isSupported, isSubscribed, loading, subscribe, unsubscribe } = usePushNotifications();
+
+  const handleTogglePush = async () => {
+    if (!isSupported) {
+      toast.error("Les notifications push ne sont pas supportées sur cet appareil/navigateur");
+      return;
+    }
+    if (isSubscribed) {
+      await unsubscribe();
+      toast.success('Notifications push désactivées');
+    } else {
+      const ok = await subscribe();
+      toast[ok ? 'success' : 'error'](
+        ok ? 'Notifications push activées' : 'Autorisation refusée ou indisponible',
+      );
+    }
+  };
 
   return (
     <header className="h-14 border-b border-border/60 bg-background/95 backdrop-blur-sm flex items-center justify-between px-5 sticky top-0 z-40">
@@ -50,15 +69,25 @@ export function Header() {
           <TooltipContent>Changer le thème</TooltipContent>
         </Tooltip>
 
-        {/* Notifications */}
+        {/* Notifications push */}
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-9 w-9 text-muted-foreground relative">
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full border border-background" />
+            <Button
+              variant="ghost"
+              size="icon"
+              disabled={loading}
+              onClick={handleTogglePush}
+              className="h-9 w-9 text-muted-foreground relative"
+            >
+              {isSubscribed ? <Bell className="w-4 h-4" /> : <BellOff className="w-4 h-4" />}
+              {isSubscribed && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-emerald-500 rounded-full border border-background" />
+              )}
             </Button>
           </TooltipTrigger>
-          <TooltipContent>Notifications</TooltipContent>
+          <TooltipContent>
+            {isSubscribed ? 'Notifications push activées (cliquer pour désactiver)' : 'Activer les notifications push'}
+          </TooltipContent>
         </Tooltip>
 
         <Separator orientation="vertical" className="h-6 mx-1" />

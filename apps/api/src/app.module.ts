@@ -5,6 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './prisma/prisma.module';
 import { StorageModule } from './storage/storage.module';
 import { BrevoModule } from './common/services/brevo.module';
+import { PushModule } from './common/services/push.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { TenantModule } from './modules/tenant/tenant.module';
 import { UsersModule } from './modules/users/users.module';
@@ -53,6 +54,7 @@ import configuration from './config/configuration';
     PrismaModule,
     StorageModule,
     BrevoModule,
+    PushModule,
     AuthModule,
     TenantModule,
     UsersModule,

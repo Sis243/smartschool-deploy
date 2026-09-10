@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BrevoService } from '../../common/services/brevo.service';
+import { PushService } from '../../common/services/push.service';
 
 type Cible = 'personnel' | 'parents';
 type Canal = 'SMS' | 'EMAIL' | 'PUSH' | 'WHATSAPP';
@@ -12,6 +13,7 @@ export class CommunicationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly brevo: BrevoService,
+    private readonly push: PushService,
   ) {}
 
   async envoyerNotification(tenantId: string, data: {
@@ -97,9 +99,12 @@ export class CommunicationService {
           envoye = await this.brevo.sendSms(telephone, texte, tenant?.name);
         } else if (dest.canal === 'WHATSAPP' && telephone) {
           envoye = await this.brevo.sendWhatsapp(telephone, texte);
+        } else if (dest.canal === 'PUSH') {
+          envoye = await this.push.sendToRecipient(
+            dest.userId ? { userId: dest.userId } : { parentId: dest.parentId! },
+            { title: dest.notification.titre, body: dest.notification.contenu },
+          );
         }
-        // PUSH n'est pas encore implémenté (aucun service de notification
-        // push branché) — échoue proprement plutôt que de prétendre réussir.
       } catch (error) {
         this.logger.error(`Échec envoi ${dest.canal} pour ${dest.id}`, error as Error);
       }

@@ -206,6 +206,7 @@ model Tenant {
   notifParents        NotifParent[]
   fichesPaie          FichePaie[]
   parents             Parent[]
+  pushSubscriptions   PushSubscription[]
 
   @@map("tenants")
 }
@@ -242,6 +243,7 @@ model User {
   suivisSupervisees   SuiviComportemental[] @relation("TheraeuteSuivi")
   busConduits         Bus[]
   fichesPaie          FichePaie[]
+  pushSubscriptions   PushSubscription[]
 
   @@map("users")
 }
@@ -271,8 +273,36 @@ model Parent {
   notifParents  NotifParent[]
   preuves       PreuvePaiement[]
   notificationsRecues NotificationDestinataire[]
+  pushSubscriptions   PushSubscription[]
 
   @@map("parents")
+}
+
+// ============================================================
+// NOTIFICATIONS PUSH (Web Push / VAPID)
+// ============================================================
+
+// Un même utilisateur/parent peut avoir plusieurs abonnements (un par
+// appareil/navigateur) — d'où l'unicité sur `endpoint` seul plutôt que sur
+// (userId, endpoint) : chaque endpoint est déjà unique au niveau du
+// navigateur qui l'a généré.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String?
+  parentId  String?
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  tenant Tenant  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent Parent? @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([parentId])
+  @@map("push_subscriptions")
 }
 
 // ============================================================

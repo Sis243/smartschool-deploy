@@ -4,8 +4,10 @@ import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
+import toast from 'react-hot-toast';
 import { isParentLoggedIn, getParentInfo } from '@/lib/parent-auth';
 import parentApi from '@/lib/parent-api';
+import { usePushNotifications } from '@/hooks/use-push-notifications';
 
 const NAV = [
   {
@@ -62,6 +64,19 @@ export default function ParentPortalLayout({ children }: { children: React.React
     refetchInterval: 30_000,
   });
   const notifNonLues: number = dashboard?.notifNonLues ?? 0;
+
+  const { isSupported, isSubscribed, subscribe } = usePushNotifications(parentApi);
+
+  // Proposer l'activation une seule fois par appareil — pas à chaque
+  // visite, sinon la demande de permission navigateur redevient intrusive.
+  useEffect(() => {
+    if (!parent || !isSupported || isSubscribed) return;
+    if (localStorage.getItem('push_propose_parent') === '1') return;
+    localStorage.setItem('push_propose_parent', '1');
+    subscribe().then((ok) => {
+      if (ok) toast.success('Notifications activées : vous serez alerté(e) directement sur ce téléphone');
+    });
+  }, [parent, isSupported, isSubscribed, subscribe]);
 
   if (!parent) return null;
 
