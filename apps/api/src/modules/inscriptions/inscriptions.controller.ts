@@ -49,7 +49,7 @@ export class InscriptionsAdminController {
   approuver(
     @CurrentTenant('id') tenantId: string,
     @Param('id') id: string,
-    @Body() data: { classeId?: string; noteSecretaire?: string },
+    @Body() data: { classeId?: string; noteSecretaire?: string; parentId?: string },
   ) {
     return this.inscriptionsService.approuver(tenantId, id, data);
   }

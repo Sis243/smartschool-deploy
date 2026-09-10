@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ClipboardList, CheckCircle, XCircle, Clock, User, Phone, Mail, Link, Copy } from 'lucide-react';
+import { ClipboardList, CheckCircle, XCircle, Clock, User, Phone, Mail, Link, Copy, Plus, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Input } from '@/components/ui/input';
+import { NouveauParentDialog } from '@/components/parents/nouveau-parent-dialog';
 import api from '@/lib/api';
 
 const statutConfig: Record<string, { label: string; cls: string; icon: any }> = {
@@ -26,62 +28,120 @@ function ApprobationDialog({ demande, onClose }: { demande: any; onClose: () => 
   const qc = useQueryClient();
   const [classeId, setClasseId] = useState('');
   const [note, setNote] = useState('');
+  const [parentId, setParentId] = useState('');
+  const [rechercheParent, setRechercheParent] = useState('');
+  const [nouveauParentOpen, setNouveauParentOpen] = useState(false);
 
   const { data: classes = [] } = useQuery({
     queryKey: ['classes-mini'],
     queryFn: async () => (await api.get('/api/v1/academique/classes')).data.data ?? [],
+  });
+  const { data: parents = [] } = useQuery({
+    queryKey: ['parents'],
+    queryFn: async () => (await api.get('/api/v1/eleves/parents')).data.data ?? [],
+  });
+
+  // Pré-sélectionne un parent déjà enregistré au même téléphone que la
+  // demande, si un existe — la secrétaire peut toujours changer.
+  useEffect(() => {
+    const correspondance = (parents as any[]).find((p) => p.telephone === demande.telephone);
+    if (correspondance) setParentId(correspondance.id);
+  }, [parents, demande.telephone]);
+
+  const parentsFiltres = (parents as any[]).filter((p) => {
+    const q = rechercheParent.trim().toLowerCase();
+    if (!q) return true;
+    return `${p.prenom} ${p.nom} ${p.telephone}`.toLowerCase().includes(q);
   });
 
   const mutation = useMutation({
     mutationFn: () => api.patch(`/api/v1/inscriptions/admin/${demande.id}/approuver`, {
       classeId: classeId || undefined,
       noteSecretaire: note || undefined,
+      parentId: parentId || undefined,
     }),
     onSuccess: () => {
       toast.success(`${demande.prenomEnfant} ${demande.nomEnfant} inscrit(e) !`);
       qc.invalidateQueries({ queryKey: ['demandes'] });
       onClose();
     },
-    onError: () => toast.error('Erreur lors de l\'approbation'),
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erreur lors de l\'approbation'),
   });
 
   return (
-    <Dialog open onOpenChange={v => { if (!v) onClose(); }}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Approuver — {demande.prenomEnfant} {demande.nomEnfant}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4 py-2">
-          <div className="bg-muted/40 rounded-lg p-3 text-sm space-y-1">
-            <p><span className="text-muted-foreground">Classe souhaitée :</span> <strong>{demande.classeVisee ?? '—'}</strong></p>
-            <p><span className="text-muted-foreground">Parent :</span> {demande.prenomParent} {demande.nomParent} — {demande.telephone}</p>
+    <>
+      <NouveauParentDialog
+        open={nouveauParentOpen}
+        onClose={() => setNouveauParentOpen(false)}
+        onCreated={(parent) => { setParentId(parent.id); setNouveauParentOpen(false); }}
+      />
+      <Dialog open onOpenChange={v => { if (!v) onClose(); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Approuver — {demande.prenomEnfant} {demande.nomEnfant}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="bg-muted/40 rounded-lg p-3 text-sm space-y-1">
+              <p><span className="text-muted-foreground">Classe souhaitée :</span> <strong>{demande.classeVisee ?? '—'}</strong></p>
+              <p><span className="text-muted-foreground">Parent indiqué sur la demande :</span> {demande.prenomParent} {demande.nomParent} — {demande.telephone}</p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Rattacher au parent</Label>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Rechercher un parent existant (nom, téléphone)..."
+                  className="pl-8 mb-2"
+                  value={rechercheParent}
+                  onChange={(e) => setRechercheParent(e.target.value)}
+                />
+              </div>
+              <div className="flex gap-2">
+                <Select value={parentId} onValueChange={setParentId}>
+                  <SelectTrigger><SelectValue placeholder="Choisir un parent existant" /></SelectTrigger>
+                  <SelectContent>
+                    {parentsFiltres.map((p: any) => (
+                      <SelectItem key={p.id} value={p.id}>{p.prenom} {p.nom} — {p.telephone}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button type="button" variant="outline" size="icon" className="shrink-0" onClick={() => setNouveauParentOpen(true)}>
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Aucune sélection = un nouveau parent sera créé à partir des informations de la demande.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Affecter à une classe</Label>
+              <Select onValueChange={setClasseId}>
+                <SelectTrigger><SelectValue placeholder="Choisir une classe (optionnel)" /></SelectTrigger>
+                <SelectContent>
+                  {(classes as any[]).map((c: any) => (
+                    <SelectItem key={c.id} value={c.id}>{c.nom} — {c.niveau}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Note interne</Label>
+              <textarea rows={2} value={note} onChange={e => setNote(e.target.value)}
+                placeholder="Note pour la secrétaire..."
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Affecter à une classe</Label>
-            <Select onValueChange={setClasseId}>
-              <SelectTrigger><SelectValue placeholder="Choisir une classe (optionnel)" /></SelectTrigger>
-              <SelectContent>
-                {(classes as any[]).map((c: any) => (
-                  <SelectItem key={c.id} value={c.id}>{c.nom} — {c.niveau}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Note interne</Label>
-            <textarea rows={2} value={note} onChange={e => setNote(e.target.value)}
-              placeholder="Note pour la secrétaire..."
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Annuler</Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="bg-emerald-600 hover:bg-emerald-500">
-            {mutation.isPending ? 'Inscription...' : 'Confirmer l\'inscription'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <Button variant="outline" onClick={onClose}>Annuler</Button>
+            <Button onClick={() => mutation.mutate()} disabled={mutation.isPending} className="bg-emerald-600 hover:bg-emerald-500">
+              {mutation.isPending ? 'Inscription...' : 'Confirmer l\'inscription'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -240,18 +300,21 @@ export function InscriptionsView() {
     queryKey: ['demandes'],
     queryFn: async () => (await api.get('/api/v1/inscriptions/admin')).data.data ?? [],
   });
+  const { data: tenant } = useQuery({
+    queryKey: ['my-tenant'],
+    queryFn: async () => (await api.get('/api/v1/tenants/me')).data.data,
+  });
 
   const list = toutes as any[];
   const enAttente = list.filter(d => d.statut === 'EN_ATTENTE').length;
   const approuvees = list.filter(d => d.statut === 'APPROUVEE').length;
   const rejetees = list.filter(d => d.statut === 'REJETEE').length;
 
-  // Récupère le slug du tenant depuis localStorage pour construire le lien public
-  const tenantSlug = typeof window !== 'undefined'
-    ? (() => { try { return JSON.parse(localStorage.getItem('smartschool-auth') ?? '{}')?.state?.user?.tenantSlug ?? ''; } catch { return ''; } })()
-    : '';
-
-  const lienPublic = tenantSlug ? `${window.location.origin}/inscription/${tenantSlug}` : '';
+  // Le slug ne fait pas partie du JWT/profil utilisateur (seul tenantId — un
+  // id, pas un slug — y figure) : on le récupère via /tenants/me plutôt que
+  // du localStorage, qui ne l'a jamais contenu.
+  const tenantSlug = (tenant as any)?.slug ?? '';
+  const lienPublic = tenantSlug && typeof window !== 'undefined' ? `${window.location.origin}/inscription/${tenantSlug}` : '';
 
   const copyLink = () => {
     if (lienPublic) {

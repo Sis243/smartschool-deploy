@@ -61,6 +61,7 @@ export class InscriptionsService {
   async approuver(tenantId: string, demandeId: string, data: {
     classeId?: string;
     noteSecretaire?: string;
+    parentId?: string;
   }) {
     const demande = await this.prisma.demandeInscription.findFirst({
       where: { id: demandeId, tenantId },
@@ -68,12 +69,14 @@ export class InscriptionsService {
     if (!demande) throw new NotFoundException('Demande introuvable');
     if (demande.statut !== 'EN_ATTENTE') throw new BadRequestException('Demande déjà traitée');
 
-    // Réutiliser le parent existant (même téléphone) plutôt que d'en créer un
-    // doublon — sinon un second enfant de la même famille fragmente les factures
-    // et le portail parent sur deux comptes distincts.
-    let parent = await this.prisma.parent.findFirst({
-      where: { tenantId, telephone: demande.telephone },
-    });
+    // La secrétaire peut explicitement rattacher un parent déjà enregistré
+    // (recherché dans la liste) — sinon on retombe sur l'ancien comportement :
+    // réutiliser un parent au même téléphone plutôt que d'en créer un doublon,
+    // ou en créer un nouveau à partir des infos de la demande.
+    let parent = data.parentId
+      ? await this.prisma.parent.findFirst({ where: { id: data.parentId, tenantId } })
+      : await this.prisma.parent.findFirst({ where: { tenantId, telephone: demande.telephone } });
+    if (data.parentId && !parent) throw new NotFoundException('Parent introuvable pour cet établissement');
     if (!parent) {
       parent = await this.prisma.parent.create({
         data: {
