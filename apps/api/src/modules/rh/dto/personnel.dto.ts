@@ -13,6 +13,9 @@ const ROLES_ASSIGNABLES = [
   'THERAPEUTE',
   'CHAUFFEUR',
   'BIBLIOTHECAIRE',
+  // Personnel d'appui (jardinier, gardien, technicien de surface...) : une
+  // fiche RH sans compte de connexion — voir `poste` pour l'intitulé exact.
+  'PERSONNEL_APPUI',
 ] as const;
 
 export class CreatePersonnelDto {
@@ -24,9 +27,13 @@ export class CreatePersonnelDto {
   @IsString()
   lastName: string;
 
-  @ApiProperty()
+  // Optionnel : le personnel d'appui n'a pas de compte de connexion, donc pas
+  // d'email — le service refuse de créer un email pour ces rôles-là plutôt
+  // que de faire confiance à ce que le front n'en envoie pas.
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsEmail()
-  email: string;
+  email?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -36,4 +43,11 @@ export class CreatePersonnelDto {
   @ApiProperty({ enum: ROLES_ASSIGNABLES })
   @IsIn(ROLES_ASSIGNABLES)
   role: (typeof ROLES_ASSIGNABLES)[number];
+
+  // Intitulé de poste libre (ex: "Jardinier", "Gardien de nuit") — surtout
+  // utile pour PERSONNEL_APPUI, mais ouvert à tous les rôles.
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  poste?: string;
 }

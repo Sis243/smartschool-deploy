@@ -35,7 +35,9 @@ export class AuthService {
       },
     });
 
-    if (!user) return null;
+    // Le personnel d'appui (jardinier, gardien...) n'a pas de mot de passe —
+    // c'est une fiche RH sans compte de connexion, jamais un compte à activer.
+    if (!user || !user.password) return null;
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) return null;

@@ -25,6 +25,7 @@ export class RhService {
         email: true,
         phone: true,
         role: true,
+        poste: true,
         createdAt: true,
       },
       orderBy: [{ role: 'asc' }, { lastName: 'asc' }],
@@ -32,22 +33,37 @@ export class RhService {
   }
 
   async createPersonnel(tenantId: string, dto: CreatePersonnelDto) {
-    const existant = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (existant) throw new ConflictException('Un utilisateur avec cet email existe déjà');
+    // PERSONNEL_APPUI (jardinier, gardien...) n'a jamais de compte de
+    // connexion : pas d'email, pas de mot de passe, pas d'invitation — juste
+    // une fiche RH pour la paie et les présences. On l'impose ici plutôt que
+    // de faire confiance au front pour ne pas envoyer d'email par erreur.
+    const sansConnexion = dto.role === 'PERSONNEL_APPUI';
+    if (!sansConnexion && !dto.email) {
+      throw new BadRequestException('Un email est requis pour ce rôle');
+    }
 
-    const bcrypt = await import('bcryptjs');
-    // Mot de passe initial inconnu de tous — la personne choisit le sien via
-    // le lien d'invitation envoyé par e-mail, jamais transmis à la main.
-    const hashedPassword = await bcrypt.hash(randomBytes(24).toString('hex'), 12);
+    if (dto.email) {
+      const existant = await this.prisma.user.findUnique({ where: { email: dto.email } });
+      if (existant) throw new ConflictException('Un utilisateur avec cet email existe déjà');
+    }
+
+    let hashedPassword: string | undefined;
+    if (!sansConnexion) {
+      const bcrypt = await import('bcryptjs');
+      // Mot de passe initial inconnu de tous — la personne choisit le sien via
+      // le lien d'invitation envoyé par e-mail, jamais transmis à la main.
+      hashedPassword = await bcrypt.hash(randomBytes(24).toString('hex'), 12);
+    }
 
     const user = await this.prisma.user.create({
       data: {
         tenantId,
         firstName: dto.firstName,
         lastName: dto.lastName,
-        email: dto.email,
+        email: sansConnexion ? undefined : dto.email,
         phone: dto.phone,
         role: dto.role,
+        poste: dto.poste,
         password: hashedPassword,
       },
       select: {
@@ -56,10 +72,11 @@ export class RhService {
         lastName: true,
         email: true,
         role: true,
+        poste: true,
       },
     });
 
-    const invitationEnvoyee = await this.authService.envoyerInvitation(user.id);
+    const invitationEnvoyee = sansConnexion ? false : await this.authService.envoyerInvitation(user.id);
     return { ...user, invitationEnvoyee };
   }
 

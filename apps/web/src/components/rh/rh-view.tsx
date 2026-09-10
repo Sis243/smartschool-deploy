@@ -25,6 +25,7 @@ const roleLabels: Record<string, string> = {
   ENSEIGNANT: 'Enseignant', DIRECTEUR: 'Directeur', COMPTABLE: 'Comptable',
   SECRETAIRE: 'Secrétaire', ADMIN: 'Admin', SUPER_ADMIN: 'Super Admin',
   THERAPEUTE: 'Thérapeute', CHAUFFEUR: 'Chauffeur', BIBLIOTHECAIRE: 'Bibliothécaire',
+  PERSONNEL_APPUI: 'Personnel d\'appui',
 };
 // Rôles assignables depuis ce formulaire — doit rester synchronisé avec
 // ROLES_ASSIGNABLES côté API (SUPER_ADMIN et PARENT sont volontairement exclus).
@@ -32,7 +33,11 @@ const roleLabelsAssignables: Record<string, string> = {
   ENSEIGNANT: 'Enseignant', DIRECTEUR: 'Directeur', COMPTABLE: 'Comptable',
   SECRETAIRE: 'Secrétaire', ADMIN: 'Admin',
   THERAPEUTE: 'Thérapeute', CHAUFFEUR: 'Chauffeur', BIBLIOTHECAIRE: 'Bibliothécaire',
+  PERSONNEL_APPUI: 'Personnel d\'appui (sans connexion)',
 };
+// Suggestions de poste pour le personnel d'appui — champ libre, ces valeurs
+// ne sont que des raccourcis pour éviter de tout retaper à chaque fois.
+const POSTES_APPUI_SUGGERES = ['Jardinier', 'Gardien', 'Technicien de surface', 'Cuisinier', 'Agent de sécurité', 'Infirmier(ère)'];
 const statutPresence: Record<string, { label: string; cls: string }> = {
   PRESENT: { label: 'Présent', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
   ABSENT:  { label: 'Absent',  cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
@@ -43,21 +48,24 @@ const statutPresence: Record<string, { label: string; cls: string }> = {
 // ─── Dialog Nouveau personnel ─────────────────────────────────────────────────
 function PersonnelDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', role: 'ENSEIGNANT' });
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', role: 'ENSEIGNANT', poste: '' });
+  const sansConnexion = form.role === 'PERSONNEL_APPUI';
 
   const mutation = useMutation({
-    mutationFn: () => api.post('/api/v1/rh/personnel', form),
+    mutationFn: () => api.post('/api/v1/rh/personnel', { ...form, email: sansConnexion ? undefined : form.email, poste: form.poste || undefined }),
     onSuccess: (res: any) => {
       const invitationEnvoyee = res?.data?.data?.invitationEnvoyee;
       toast.success(
-        invitationEnvoyee
+        sansConnexion
+          ? 'Personnel ajouté — fiche RH créée sans compte de connexion'
+          : invitationEnvoyee
           ? `Personnel ajouté — un e-mail d'activation a été envoyé à ${form.email}`
           : "Personnel ajouté — l'e-mail d'activation n'a pas pu être envoyé, réessayez depuis \"Mot de passe oublié\"",
         { duration: 6000 },
       );
       qc.invalidateQueries({ queryKey: ['personnel'] });
       onClose();
-      setForm({ firstName: '', lastName: '', email: '', phone: '', role: 'ENSEIGNANT' });
+      setForm({ firstName: '', lastName: '', email: '', phone: '', role: 'ENSEIGNANT', poste: '' });
     },
     onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Erreur lors de l\'ajout'),
   });
@@ -78,29 +86,51 @@ function PersonnelDialog({ open, onClose }: { open: boolean; onClose: () => void
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>Email *</Label>
-            <Input type="email" placeholder="ex: marie.kabila@ecole.cd" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            <Label>Rôle *</Label>
+            <Select value={form.role} defaultValue="ENSEIGNANT" onValueChange={(v) => setForm({ ...form, role: v })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{Object.entries(roleLabelsAssignables).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
+            </Select>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+
+          {sansConnexion ? (
             <div className="space-y-1.5">
-              <Label>Téléphone</Label>
-              <Input placeholder="+243 ..." value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              <Label>Poste *</Label>
+              <Input placeholder="ex: Jardinier" value={form.poste} onChange={(e) => setForm({ ...form, poste: e.target.value })} />
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {POSTES_APPUI_SUGGERES.map((p) => (
+                  <button key={p} type="button" onClick={() => setForm({ ...form, poste: p })}
+                    className="text-xs px-2 py-1 rounded-full border border-border text-muted-foreground hover:border-blue-400 hover:text-foreground transition-colors">
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
+          ) : (
             <div className="space-y-1.5">
-              <Label>Rôle *</Label>
-              <Select defaultValue="ENSEIGNANT" onValueChange={(v) => setForm({ ...form, role: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{Object.entries(roleLabelsAssignables).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent>
-              </Select>
+              <Label>Email *</Label>
+              <Input type="email" placeholder="ex: marie.kabila@ecole.cd" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
             </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label>Téléphone</Label>
+            <Input placeholder="+243 ..." value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
           </div>
+
           <p className="text-xs text-muted-foreground">
-            Un e-mail d&apos;activation sera envoyé à cette adresse pour que la personne choisisse elle-même son mot de passe.
+            {sansConnexion
+              ? "Ce membre du personnel apparaîtra dans la paie et les présences, mais n'aura jamais de compte de connexion à l'application."
+              : "Un e-mail d'activation sera envoyé à cette adresse pour que la personne choisisse elle-même son mot de passe."}
           </p>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Annuler</Button>
-          <Button onClick={() => mutation.mutate()} disabled={!form.firstName || !form.lastName || !form.email || mutation.isPending} className="bg-blue-600 hover:bg-blue-500">
+          <Button
+            onClick={() => mutation.mutate()}
+            disabled={!form.firstName || !form.lastName || (sansConnexion ? !form.poste : !form.email) || mutation.isPending}
+            className="bg-blue-600 hover:bg-blue-500"
+          >
             {mutation.isPending ? 'Ajout...' : 'Ajouter'}
           </Button>
         </DialogFooter>
@@ -121,7 +151,7 @@ function PersonnelTab() {
   });
 
   const filtered = personnel.filter((p: any) =>
-    !search || `${p.firstName} ${p.lastName} ${p.email}`.toLowerCase().includes(search.toLowerCase())
+    !search || `${p.firstName} ${p.lastName} ${p.email ?? ''} ${p.poste ?? ''}`.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -164,9 +194,12 @@ function PersonnelTab() {
                       <p className="text-sm font-medium">{p.firstName} {p.lastName}</p>
                     </div>
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">{p.email}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm">{p.email || '—'}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">{p.phone || '—'}</TableCell>
-                  <TableCell><Badge variant="secondary" className="text-xs">{roleLabels[p.role] ?? p.role}</Badge></TableCell>
+                  <TableCell>
+                    <Badge variant="secondary" className="text-xs">{roleLabels[p.role] ?? p.role}</Badge>
+                    {p.poste && <p className="text-xs text-muted-foreground mt-0.5">{p.poste}</p>}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

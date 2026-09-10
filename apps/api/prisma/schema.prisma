@@ -60,6 +60,10 @@ enum UserRole {
   PARENT
   CHAUFFEUR
   BIBLIOTHECAIRE
+  // Personnel d'appui sans accès à l'application (jardinier, gardien,
+  // technicien de surface, cuisinier...) — voir `User.poste` pour l'intitulé
+  // exact du poste. Ne se connecte jamais : email/password restent null.
+  PERSONNEL_APPUI
 }
 
 enum StatutPaiement {
@@ -218,12 +222,18 @@ model Tenant {
 model User {
   id           String   @id @default(cuid())
   tenantId     String?
-  email        String   @unique
-  password     String
+  // Nullable : le personnel d'appui (jardinier, gardien, technicien de
+  // surface...) a une fiche RH sans jamais se connecter à l'application —
+  // pas d'email, pas de mot de passe, pas d'invitation envoyée.
+  email        String?  @unique
+  password     String?
   firstName    String
   lastName     String
   phone        String?
   photoUrl     String?
+  // Intitulé de poste libre (ex: "Jardinier", "Gardien", "Enseignante de CM1")
+  // — distinct de `role` qui reste le niveau d'accès système (RBAC).
+  poste        String?
   role         UserRole @default(ENSEIGNANT)
   isSuperAdmin Boolean  @default(false)
   isActive     Boolean  @default(true)

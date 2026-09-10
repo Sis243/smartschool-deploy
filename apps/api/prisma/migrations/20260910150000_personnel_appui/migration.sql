@@ -1,0 +1,7 @@
+-- AlterEnum
+ALTER TYPE "UserRole" ADD VALUE 'PERSONNEL_APPUI';
+
+-- AlterTable
+ALTER TABLE "users" ALTER COLUMN "email" DROP NOT NULL;
+ALTER TABLE "users" ALTER COLUMN "password" DROP NOT NULL;
+ALTER TABLE "users" ADD COLUMN "poste" TEXT;

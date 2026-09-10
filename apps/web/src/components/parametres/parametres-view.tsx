@@ -32,6 +32,7 @@ const ROLES: Record<string, { label: string; color: string }> = {
   THERAPEUTE:    { label: 'Thérapeute',     color: 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400' },
   BIBLIOTHECAIRE:{ label: 'Bibliothécaire', color: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400' },
   CHAUFFEUR:     { label: 'Chauffeur',      color: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400' },
+  PERSONNEL_APPUI: { label: "Personnel d'appui", color: 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400' },
 };
 
 // ─── Onglet Profil ────────────────────────────────────────────────────────────
