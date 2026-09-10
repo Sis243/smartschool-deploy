@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { User, Lock, Building2, Users, Plus, Shield, Eye, EyeOff, Check, X, ImageUp, CreditCard } from 'lucide-react';
+import { User, Lock, Building2, Users, Plus, Shield, Eye, EyeOff, Check, X, ImageUp, CreditCard, Search } from 'lucide-react';
 import { useRef } from 'react';
 import { usePermissions } from '@/hooks/use-permissions';
 import toast from 'react-hot-toast';
@@ -433,9 +433,10 @@ function NouvelUtilisateurDialog({ open, onClose }: { open: boolean; onClose: ()
 function UtilisateursTab() {
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [search, setSearch] = useState('');
   const { user: me } = useAuthStore();
 
-  const { data: users = [], isLoading } = useQuery({
+  const { data: usersData = [], isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: async () => (await api.get('/api/v1/users')).data.data ?? [],
   });
@@ -445,21 +446,31 @@ function UtilisateursTab() {
     onSuccess: () => { toast.success('Statut mis à jour'); qc.invalidateQueries({ queryKey: ['users'] }); },
   });
 
-  const list = users as any[];
+  const list = (usersData as any[]).filter((u) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return `${u.firstName} ${u.lastName} ${u.email} ${u.role}`.toLowerCase().includes(q);
+  });
 
   return (
     <>
       <NouvelUtilisateurDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
       <Card className="border-border/50 shadow-sm">
         <CardHeader className="pb-0">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <CardTitle className="text-base">Comptes utilisateurs ({list.length})</CardTitle>
+              <CardTitle className="text-base">Comptes utilisateurs ({(usersData as any[]).length})</CardTitle>
               <CardDescription className="mt-0.5">Gérez les accès à SmartSchool ERP</CardDescription>
             </div>
-            <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={() => setDialogOpen(true)}>
-              <Plus className="w-4 h-4" />Nouvel utilisateur
-            </Button>
+            <div className="flex items-center gap-2">
+              <div className="relative w-56">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input placeholder="Rechercher un utilisateur..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 text-sm" />
+              </div>
+              <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={() => setDialogOpen(true)}>
+                <Plus className="w-4 h-4" />Nouvel utilisateur
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0 mt-4">

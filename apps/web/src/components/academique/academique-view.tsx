@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { GraduationCap, BookOpen, Clock, Users, Plus, Calendar, CheckCircle, FileText, UserCheck, TrendingUp, ScanFace, Loader2 } from 'lucide-react';
+import { GraduationCap, BookOpen, Clock, Users, Plus, Calendar, CheckCircle, FileText, UserCheck, TrendingUp, ScanFace, Loader2, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -206,15 +206,27 @@ function ExamenDialog({ open, onClose }: { open: boolean; onClose: () => void })
 // ─── Onglet Classes ───────────────────────────────────────────────────────────
 function ClassesTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const { data: classes = [], isLoading } = useQuery({ queryKey: ['classes'], queryFn: async () => (await api.get('/api/v1/academique/classes')).data.data });
+  const [search, setSearch] = useState('');
+  const { data: classesData = [], isLoading } = useQuery({ queryKey: ['classes'], queryFn: async () => (await api.get('/api/v1/academique/classes')).data.data });
+  const classes = (classesData as any[]).filter((c) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return `${c.nom} ${c.niveau} ${c.titulaire ? `${c.titulaire.firstName} ${c.titulaire.lastName}` : ''}`.toLowerCase().includes(q);
+  });
   return (
     <>
       <ClasseDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
       <Card className="border-border/50 shadow-sm">
         <CardHeader className="pb-0">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Classes ({(classes as any[]).length})</CardTitle>
-            <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={() => setDialogOpen(true)}><Plus className="w-4 h-4" />Nouvelle classe</Button>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle className="text-base">Classes ({(classesData as any[]).length})</CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="relative w-56">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input placeholder="Rechercher une classe, un titulaire..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 text-sm" />
+              </div>
+              <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={() => setDialogOpen(true)}><Plus className="w-4 h-4" />Nouvelle classe</Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0 mt-4">
@@ -222,7 +234,7 @@ function ClassesTab() {
             <TableHeader><TableRow className="hover:bg-transparent"><TableHead>Nom</TableHead><TableHead>Niveau</TableHead><TableHead>Titulaire</TableHead><TableHead>Capacité</TableHead><TableHead>Élèves</TableHead></TableRow></TableHeader>
             <TableBody>
               {isLoading ? Array.from({ length: 3 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 5 }).map((__, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>)
-                : (classes as any[]).length === 0 ? <TableRow><TableCell colSpan={5} className="py-12 text-center text-muted-foreground"><p>Aucune classe configurée</p><Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setDialogOpen(true)}><Plus className="w-4 h-4" />Créer</Button></TableCell></TableRow>
+                : (classes as any[]).length === 0 ? <TableRow><TableCell colSpan={5} className="py-12 text-center text-muted-foreground">{search ? <p>Aucune classe ne correspond à « {search} »</p> : <><p>Aucune classe configurée</p><Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setDialogOpen(true)}><Plus className="w-4 h-4" />Créer</Button></>}</TableCell></TableRow>
                 : (classes as any[]).map((c: any) => (
                   <TableRow key={c.id}>
                     <TableCell className="font-semibold">{c.nom}</TableCell>
@@ -243,15 +255,27 @@ function ClassesTab() {
 // ─── Onglet Matières ──────────────────────────────────────────────────────────
 function MatieresTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const { data: matieres = [], isLoading } = useQuery({ queryKey: ['matieres'], queryFn: async () => (await api.get('/api/v1/academique/matieres')).data.data });
+  const [search, setSearch] = useState('');
+  const { data: matieresData = [], isLoading } = useQuery({ queryKey: ['matieres'], queryFn: async () => (await api.get('/api/v1/academique/matieres')).data.data });
+  const matieres = (matieresData as any[]).filter((m) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return `${m.nom} ${m.code ?? ''}`.toLowerCase().includes(q);
+  });
   return (
     <>
       <MatiereDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
       <Card className="border-border/50 shadow-sm">
         <CardHeader className="pb-0">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Matières ({(matieres as any[]).length})</CardTitle>
-            <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={() => setDialogOpen(true)}><Plus className="w-4 h-4" />Nouvelle matière</Button>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle className="text-base">Matières ({(matieresData as any[]).length})</CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="relative w-56">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input placeholder="Rechercher une matière, un code..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 text-sm" />
+              </div>
+              <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={() => setDialogOpen(true)}><Plus className="w-4 h-4" />Nouvelle matière</Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0 mt-4">
@@ -259,7 +283,7 @@ function MatieresTab() {
             <TableHeader><TableRow className="hover:bg-transparent"><TableHead>Matière</TableHead><TableHead>Code</TableHead><TableHead>Coefficient</TableHead></TableRow></TableHeader>
             <TableBody>
               {isLoading ? Array.from({ length: 3 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 3 }).map((__, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>)
-                : (matieres as any[]).length === 0 ? <TableRow><TableCell colSpan={3} className="py-12 text-center text-muted-foreground"><p>Aucune matière</p><Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setDialogOpen(true)}><Plus className="w-4 h-4" />Ajouter</Button></TableCell></TableRow>
+                : (matieres as any[]).length === 0 ? <TableRow><TableCell colSpan={3} className="py-12 text-center text-muted-foreground">{search ? <p>Aucune matière ne correspond à « {search} »</p> : <><p>Aucune matière</p><Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setDialogOpen(true)}><Plus className="w-4 h-4" />Ajouter</Button></>}</TableCell></TableRow>
                 : (matieres as any[]).map((m: any) => (
                   <TableRow key={m.id}>
                     <TableCell className="font-medium">{m.nom}</TableCell>
@@ -398,15 +422,27 @@ function AnneeScolaireTab() {
 // ─── Onglet Examens ───────────────────────────────────────────────────────────
 function ExamensTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const { data: examens = [], isLoading } = useQuery({ queryKey: ['examens'], queryFn: async () => (await api.get('/api/v1/academique/examens')).data.data ?? [] });
+  const [search, setSearch] = useState('');
+  const { data: examensData = [], isLoading } = useQuery({ queryKey: ['examens'], queryFn: async () => (await api.get('/api/v1/academique/examens')).data.data ?? [] });
+  const examens = (examensData as any[]).filter((e) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return `${e.libelle} ${e.classe?.nom ?? ''} ${e.matiere?.nom ?? ''}`.toLowerCase().includes(q);
+  });
   return (
     <>
       <ExamenDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
       <Card className="border-border/50 shadow-sm">
         <CardHeader className="pb-0">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Examens ({(examens as any[]).length})</CardTitle>
-            <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={() => setDialogOpen(true)}><Plus className="w-4 h-4" />Programmer un examen</Button>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle className="text-base">Examens ({(examensData as any[]).length})</CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="relative w-56">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input placeholder="Rechercher un examen, une classe..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 text-sm" />
+              </div>
+              <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={() => setDialogOpen(true)}><Plus className="w-4 h-4" />Programmer un examen</Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0 mt-4">
@@ -414,7 +450,7 @@ function ExamensTab() {
             <TableHeader><TableRow className="hover:bg-transparent"><TableHead>Examen</TableHead><TableHead>Classe</TableHead><TableHead>Matière</TableHead><TableHead>Date</TableHead><TableHead>Durée</TableHead><TableHead>Sur</TableHead></TableRow></TableHeader>
             <TableBody>
               {isLoading ? Array.from({ length: 3 }).map((_, i) => <TableRow key={i}>{Array.from({ length: 6 }).map((__, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>)
-                : (examens as any[]).length === 0 ? <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground"><FileText className="w-8 h-8 mx-auto mb-2 opacity-30" /><p>Aucun examen programmé</p><Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setDialogOpen(true)}><Plus className="w-4 h-4" />Programmer</Button></TableCell></TableRow>
+                : (examens as any[]).length === 0 ? <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground"><FileText className="w-8 h-8 mx-auto mb-2 opacity-30" />{search ? <p>Aucun examen ne correspond à « {search} »</p> : <><p>Aucun examen programmé</p><Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setDialogOpen(true)}><Plus className="w-4 h-4" />Programmer</Button></>}</TableCell></TableRow>
                 : (examens as any[]).map((e: any) => (
                   <TableRow key={e.id}>
                     <TableCell className="font-medium">{e.libelle}</TableCell>
@@ -616,6 +652,7 @@ function PresencesTab() {
   const [classeId, setClasseId] = useState('');
   const [date, setDate] = useState(today);
   const [statutsMap, setStatutsMap] = useState<Record<string, string>>({});
+  const [search, setSearch] = useState('');
 
   const { data: classes = [] } = useQuery({ queryKey: ['classes'], queryFn: async () => (await api.get('/api/v1/academique/classes')).data.data });
 
@@ -641,7 +678,12 @@ function PresencesTab() {
     onError: () => toast.error('Erreur lors de l\'enregistrement'),
   });
 
-  const lignesArr = lignes as { eleve: any; presence: any }[];
+  const lignesArrToutes = lignes as { eleve: any; presence: any }[];
+  const lignesArr = lignesArrToutes.filter(({ eleve }) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return `${eleve.prenom} ${eleve.nom} ${eleve.matricule}`.toLowerCase().includes(q);
+  });
   const presents = Object.values(statutsMap).filter((s) => s === 'PRESENT').length;
   const absents = Object.values(statutsMap).filter((s) => s === 'ABSENT').length;
 
@@ -655,6 +697,12 @@ function PresencesTab() {
               <SelectContent>{(classes as any[]).map((c: any) => <SelectItem key={c.id} value={c.id}>{c.nom}</SelectItem>)}</SelectContent>
             </Select>
             <Input type="date" value={date} onChange={(e) => { setDate(e.target.value); setStatutsMap({}); }} className="w-44 h-9 text-sm" />
+            {classeId && isFetched && lignesArrToutes.length > 0 && (
+              <div className="relative w-48">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input placeholder="Rechercher un élève..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
+              </div>
+            )}
           </div>
           {classeId && isFetched && (
             <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={() => sauvegarder.mutate()} disabled={sauvegarder.isPending}>
@@ -663,11 +711,11 @@ function PresencesTab() {
           )}
         </div>
 
-        {classeId && isFetched && lignesArr.length > 0 && (
+        {classeId && isFetched && lignesArrToutes.length > 0 && (
           <div className="flex gap-4 mt-3 text-sm">
             <span className="flex items-center gap-1.5 text-emerald-600 font-medium"><TrendingUp className="w-4 h-4" />{presents} présents</span>
             <span className="flex items-center gap-1.5 text-red-600 font-medium"><UserCheck className="w-4 h-4" />{absents} absents</span>
-            <span className="text-muted-foreground">{lignesArr.length} élèves total</span>
+            <span className="text-muted-foreground">{lignesArrToutes.length} élèves total</span>
           </div>
         )}
       </CardHeader>
@@ -680,7 +728,9 @@ function PresencesTab() {
         ) : isLoading ? (
           <div className="space-y-2 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
         ) : lignesArr.length === 0 ? (
-          <div className="py-12 text-center text-muted-foreground border-t">Aucun élève actif dans cette classe</div>
+          <div className="py-12 text-center text-muted-foreground border-t">
+            {search ? `Aucun élève ne correspond à « ${search} »` : 'Aucun élève actif dans cette classe'}
+          </div>
         ) : (
           <Table>
             <TableHeader>

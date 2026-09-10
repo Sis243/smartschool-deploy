@@ -233,15 +233,27 @@ function FacturesTab() {
 
 // ─── Onglet Paiements ─────────────────────────────────────────────────────────
 function PaiementsTab() {
+  const [search, setSearch] = useState('');
   const { data, isLoading } = useQuery({
     queryKey: ['paiements'],
     queryFn: async () => (await api.get('/api/v1/finances/paiements?limit=30')).data,
   });
-  const rows = data?.data ?? [];
+  const allRows = data?.data ?? [];
+  const rows = (allRows as any[]).filter((p) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return `${p.eleve?.prenom} ${p.eleve?.nom} ${p.facture?.type ?? ''} ${p.modePaiement ?? ''} ${p.reference ?? ''}`.toLowerCase().includes(q);
+  });
 
   return (
     <Card className="border-border/50 shadow-sm">
-      <CardContent className="p-0">
+      <CardHeader className="pb-0">
+        <div className="relative w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Rechercher un élève, une référence..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+        </div>
+      </CardHeader>
+      <CardContent className="p-0 mt-4">
         <Table>
           <TableHeader>
             <TableRow className="hover:bg-transparent">
@@ -254,7 +266,7 @@ function PaiementsTab() {
             {isLoading ? Array.from({ length: 5 }).map((_, i) => (
               <TableRow key={i}>{Array.from({ length: 6 }).map((__, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
             )) : rows.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground">Aucun paiement enregistré</TableCell></TableRow>
+              <TableRow><TableCell colSpan={6} className="py-12 text-center text-muted-foreground">{search ? `Aucun paiement ne correspond à « ${search} »` : 'Aucun paiement enregistré'}</TableCell></TableRow>
             ) : rows.map((p: any) => (
               <TableRow key={p.id}>
                 <TableCell className="text-muted-foreground text-sm">{new Date(p.createdAt).toLocaleDateString('fr-FR')}</TableCell>
@@ -277,8 +289,9 @@ function PreuvesTab() {
   const qc = useQueryClient();
   const [selected, setSelected] = useState<any>(null);
   const [note, setNote] = useState('');
+  const [search, setSearch] = useState('');
 
-  const { data: preuves = [], isLoading } = useQuery({
+  const { data: preuvesToutes = [], isLoading } = useQuery({
     queryKey: ['preuves-paiement'],
     queryFn: async () => (await api.get('/api/v1/parent/admin/preuves')).data.data ?? [],
     refetchInterval: 30_000,
@@ -304,20 +317,29 @@ function PreuvesTab() {
     REJETE: 'bg-red-100 text-red-700',
   };
 
-  const pending = preuves.filter((p: any) => p.statut === 'EN_ATTENTE');
+  const pending = preuvesToutes.filter((p: any) => p.statut === 'EN_ATTENTE');
+  const preuves = (preuvesToutes as any[]).filter((p) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return `${p.facture?.eleve?.prenom} ${p.facture?.eleve?.nom} ${p.parent?.prenom} ${p.parent?.nom} ${p.parent?.telephone ?? ''} ${p.reference ?? ''}`.toLowerCase().includes(q);
+  });
 
   return (
     <>
       <Card className="border-border/50 shadow-sm">
         <CardHeader className="pb-3">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <ShieldCheck className="w-5 h-5 text-blue-500" />
             <CardTitle className="text-base">Preuves de paiement en attente</CardTitle>
             {pending.length > 0 && (
-              <span className="ml-auto text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+              <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
                 {pending.length} à valider
               </span>
             )}
+            <div className="relative w-56 ml-auto">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <Input placeholder="Rechercher un élève, un parent..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 text-sm" />
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
@@ -339,7 +361,7 @@ function PreuvesTab() {
               )) : preuves.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
-                    Aucune preuve de paiement soumise
+                    {search ? `Aucune preuve ne correspond à « ${search} »` : 'Aucune preuve de paiement soumise'}
                   </TableCell>
                 </TableRow>
               ) : preuves.map((p: any) => (

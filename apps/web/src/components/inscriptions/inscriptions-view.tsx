@@ -189,8 +189,9 @@ function RejetDialog({ demande, onClose }: { demande: any; onClose: () => void }
 function DemandesTable({ statut }: { statut?: string }) {
   const [approuvant, setApprouvant] = useState<any>(null);
   const [rejetant, setRejetant] = useState<any>(null);
+  const [search, setSearch] = useState('');
 
-  const { data: demandes = [], isLoading } = useQuery({
+  const { data: demandesToutes = [], isLoading } = useQuery({
     queryKey: ['demandes', statut],
     queryFn: async () => {
       const url = statut ? `/api/v1/inscriptions/admin?statut=${statut}` : '/api/v1/inscriptions/admin';
@@ -198,7 +199,11 @@ function DemandesTable({ statut }: { statut?: string }) {
     },
   });
 
-  const list = demandes as any[];
+  const list = (demandesToutes as any[]).filter((d) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return `${d.prenomEnfant} ${d.nomEnfant} ${d.prenomParent} ${d.nomParent} ${d.telephone} ${d.email ?? ''}`.toLowerCase().includes(q);
+  });
 
   return (
     <>
@@ -206,7 +211,13 @@ function DemandesTable({ statut }: { statut?: string }) {
       {rejetant && <RejetDialog demande={rejetant} onClose={() => setRejetant(null)} />}
 
       <Card className="border-border/50 shadow-sm">
-        <CardContent className="p-0">
+        <CardHeader className="pb-0">
+          <div className="relative w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input placeholder="Rechercher un enfant, un parent, un téléphone..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          </div>
+        </CardHeader>
+        <CardContent className="p-0 mt-4">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -232,7 +243,7 @@ function DemandesTable({ statut }: { statut?: string }) {
                 <TableRow>
                   <TableCell colSpan={7} className="py-12 text-center text-muted-foreground">
                     <ClipboardList className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                    <p>Aucune demande</p>
+                    <p>{search ? `Aucune demande ne correspond à « ${search} »` : 'Aucune demande'}</p>
                   </TableCell>
                 </TableRow>
               ) : (

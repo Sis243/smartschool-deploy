@@ -357,6 +357,7 @@ function TherapiesTab({ eleveId }: { eleveId: string }) {
 // ─── Vue principale ───────────────────────────────────────────────────────────
 export function AutismeView() {
   const [selectedEleveId, setSelectedEleveId] = useState('');
+  const [searchEleve, setSearchEleve] = useState('');
 
   const { data: eleves = [], isLoading: loadingEleves } = useQuery({
     queryKey: ['eleves-mini'],
@@ -364,6 +365,11 @@ export function AutismeView() {
   });
 
   const elevesList = eleves as any[];
+  const elevesFiltres = elevesList.filter((e) => {
+    const q = searchEleve.trim().toLowerCase();
+    if (!q) return true;
+    return `${e.prenom} ${e.nom} ${e.matricule}`.toLowerCase().includes(q);
+  });
   const selectedEleve = elevesList.find(e => e.id === selectedEleveId);
 
   return (
@@ -392,9 +398,20 @@ export function AutismeView() {
                   <SelectValue placeholder="Sélectionner un élève..." />
                 </SelectTrigger>
                 <SelectContent>
+                  <div className="px-2 py-1.5 sticky top-0 bg-popover z-10">
+                    <Input
+                      placeholder="Rechercher un élève..."
+                      value={searchEleve}
+                      onChange={(e) => setSearchEleve(e.target.value)}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      className="h-8 text-sm"
+                    />
+                  </div>
                   {loadingEleves ? (
                     <SelectItem value="_" disabled>Chargement...</SelectItem>
-                  ) : elevesList.map(e => (
+                  ) : elevesFiltres.length === 0 ? (
+                    <div className="px-2 py-3 text-sm text-muted-foreground text-center">Aucun élève trouvé</div>
+                  ) : elevesFiltres.map(e => (
                     <SelectItem key={e.id} value={e.id}>
                       {e.prenom} {e.nom} — {e.matricule}
                     </SelectItem>

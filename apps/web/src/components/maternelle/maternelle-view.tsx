@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Heart, Sun, Moon, Utensils, Plus, User, Baby } from 'lucide-react';
+import { Heart, Sun, Moon, Utensils, Plus, User, Baby, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -157,7 +157,8 @@ function SuiviDialog({ open, onClose, eleveId, eleveName }: { open: boolean; onC
 
 // ─── Onglet Élèves ────────────────────────────────────────────────────────────
 function ElevesTab({ onNewSuivi }: { onNewSuivi: (id: string, name: string) => void }) {
-  const { data: eleves = [], isLoading } = useQuery({
+  const [search, setSearch] = useState('');
+  const { data: elevesData = [], isLoading } = useQuery({
     queryKey: ['eleves-maternelle'],
     queryFn: async () => {
       try {
@@ -168,18 +169,33 @@ function ElevesTab({ onNewSuivi }: { onNewSuivi: (id: string, name: string) => v
     },
   });
 
-  const elevesList = eleves as any[];
+  const elevesList = (elevesData as any[]).filter((e) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return `${e.prenom} ${e.nom} ${e.matricule} ${e.classe?.nom ?? ''}`.toLowerCase().includes(q);
+  });
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="space-y-4">
+      {(elevesData as any[]).length > 0 && (
+        <div className="relative w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Rechercher un élève..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+        </div>
+      )}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {isLoading ? (
         Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-28 w-full rounded-xl" />)
       ) : elevesList.length === 0 ? (
         <Card className="col-span-full border-border/50 border-dashed">
           <CardContent className="py-16 text-center text-muted-foreground">
             <Baby className="w-8 h-8 mx-auto mb-2 opacity-30" />
-            <p>Aucun élève de maternelle trouvé</p>
-            <p className="text-xs mt-1">Créez des classes avec le niveau MATERNELLE dans le module Académique</p>
+            {search ? <p>Aucun élève ne correspond à « {search} »</p> : (
+              <>
+                <p>Aucun élève de maternelle trouvé</p>
+                <p className="text-xs mt-1">Créez des classes avec le niveau MATERNELLE dans le module Académique</p>
+              </>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -209,6 +225,7 @@ function ElevesTab({ onNewSuivi }: { onNewSuivi: (id: string, name: string) => v
           );
         })
       )}
+      </div>
     </div>
   );
 }
@@ -217,19 +234,28 @@ function ElevesTab({ onNewSuivi }: { onNewSuivi: (id: string, name: string) => v
 function JournalTab() {
   const today = new Date().toISOString().split('T')[0];
   const [dateFilter, setDateFilter] = useState(today);
+  const [search, setSearch] = useState('');
 
-  const { data: suivis = [], isLoading } = useQuery({
+  const { data: suivisToutes = [], isLoading } = useQuery({
     queryKey: ['suivis-mat', dateFilter],
     queryFn: async () => (await api.get(`/api/v1/maternelle/suivis?date=${dateFilter}`)).data.data ?? [],
   });
 
-  const suivisList = suivis as any[];
+  const suivisList = (suivisToutes as any[]).filter((s) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return `${s.eleve?.prenom} ${s.eleve?.nom}`.toLowerCase().includes(q);
+  });
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Label className="text-sm text-muted-foreground shrink-0">Date :</Label>
         <Input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)} className="w-44" />
+        <div className="relative w-56">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+          <Input placeholder="Rechercher un élève..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-9 text-sm" />
+        </div>
         <span className="text-sm text-muted-foreground">{suivisList.length} suivi(s) ce jour</span>
       </div>
 
@@ -239,7 +265,7 @@ function JournalTab() {
         <Card className="border-border/50 border-dashed">
           <CardContent className="py-14 text-center text-muted-foreground">
             <Heart className="w-8 h-8 mx-auto mb-2 opacity-30" />
-            <p>Aucun suivi enregistré pour cette date</p>
+            <p>{search ? `Aucun suivi ne correspond à « ${search} »` : 'Aucun suivi enregistré pour cette date'}</p>
           </CardContent>
         </Card>
       ) : (

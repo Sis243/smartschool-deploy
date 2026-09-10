@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { MessageSquare, Mail, Phone, Send, Users, CheckCircle, Clock, XCircle } from 'lucide-react';
+import { MessageSquare, Mail, Phone, Send, Users, CheckCircle, Clock, XCircle, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -162,20 +162,32 @@ function ComposerTab() {
 
 // ─── Onglet Historique ────────────────────────────────────────────────────────
 function HistoriqueTab() {
-  const { data: notifications = [], isLoading } = useQuery({
+  const [search, setSearch] = useState('');
+  const { data: notificationsToutes = [], isLoading } = useQuery({
     queryKey: ['notifications'],
     queryFn: async () => (await api.get('/api/v1/communication/notifications?limit=30')).data.data,
+  });
+  const notifications = (notificationsToutes as any[]).filter((n) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return `${n.titre} ${n.contenu}`.toLowerCase().includes(q);
   });
 
   return (
     <div className="space-y-3">
+      {(notificationsToutes as any[]).length > 0 && (
+        <div className="relative w-64">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input placeholder="Rechercher un message..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+        </div>
+      )}
       {isLoading ? (
         Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)
       ) : (notifications as any[]).length === 0 ? (
         <Card className="border-border/50 border-dashed">
           <CardContent className="py-16 text-center text-muted-foreground">
             <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-30" />
-            <p>Aucune notification envoyée</p>
+            <p>{search ? `Aucun message ne correspond à « ${search} »` : 'Aucune notification envoyée'}</p>
           </CardContent>
         </Card>
       ) : (

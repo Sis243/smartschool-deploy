@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Building2, Users, GraduationCap, Settings2, Plus, CreditCard } from 'lucide-react';
+import { Building2, Users, GraduationCap, Settings2, Plus, CreditCard, Search } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -229,10 +229,17 @@ export function SuperAdminView() {
   const [tenantModules, setTenantModules] = useState<any | null>(null);
   const [tenantAbonnement, setTenantAbonnement] = useState<any | null>(null);
   const [nouvelleEcoleOpen, setNouvelleEcoleOpen] = useState(false);
+  const [search, setSearch] = useState('');
 
-  const { data: tenants = [], isLoading } = useQuery({
+  const { data: tenantsToutes = [], isLoading } = useQuery({
     queryKey: ['tenants-super-admin'],
     queryFn: async () => (await api.get('/api/v1/tenants')).data.data,
+  });
+
+  const tenants = (tenantsToutes as any[]).filter((t) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return `${t.name} ${t.slug} ${t.email ?? ''}`.toLowerCase().includes(q);
   });
 
   const toggleActif = useMutation({
@@ -241,9 +248,9 @@ export function SuperAdminView() {
     onError: () => toast.error('Erreur'),
   });
 
-  const totalEcoles = tenants.length;
-  const totalEleves = tenants.reduce((s: number, t: any) => s + (t._count?.eleves ?? 0), 0);
-  const totalUsers = tenants.reduce((s: number, t: any) => s + (t._count?.users ?? 0), 0);
+  const totalEcoles = tenantsToutes.length;
+  const totalEleves = (tenantsToutes as any[]).reduce((s: number, t: any) => s + (t._count?.eleves ?? 0), 0);
+  const totalUsers = (tenantsToutes as any[]).reduce((s: number, t: any) => s + (t._count?.users ?? 0), 0);
 
   return (
     <div className="space-y-6">
@@ -276,8 +283,16 @@ export function SuperAdminView() {
       </div>
 
       <Card className="border-border/50 shadow-sm">
-        <CardHeader><CardTitle className="text-base">Établissements</CardTitle></CardHeader>
-        <CardContent className="p-0">
+        <CardHeader className="pb-0">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle className="text-base">Établissements ({totalEcoles})</CardTitle>
+            <div className="relative w-64">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+              <Input placeholder="Rechercher une école..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 text-sm" />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0 mt-4">
           <Table>
             <TableHeader>
               <TableRow className="hover:bg-transparent">
@@ -289,7 +304,7 @@ export function SuperAdminView() {
               {isLoading ? Array.from({ length: 3 }).map((_, i) => (
                 <TableRow key={i}>{Array.from({ length: 5 }).map((__, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
               )) : tenants.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="py-12 text-center text-muted-foreground">Aucun établissement</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="py-12 text-center text-muted-foreground">{search ? `Aucune école ne correspond à « ${search} »` : 'Aucun établissement'}</TableCell></TableRow>
               ) : tenants.map((t: any) => {
                 const fin = t.subscriptionEnd ? new Date(t.subscriptionEnd) : null;
                 const joursRestants = fin ? Math.ceil((fin.getTime() - Date.now()) / 86_400_000) : null;
