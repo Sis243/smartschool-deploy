@@ -28,6 +28,11 @@ export class InscriptionsService {
         genre: data.genre,
         classeVisee: data.classeVisee,
         anneeScolaire: data.anneeScolaire,
+        photoUrl: data.photoUrl,
+        ecolePrecedente: data.ecolePrecedente,
+        besoinsParticuliers: data.besoinsParticuliers,
+        contactUrgenceNom: data.contactUrgenceNom,
+        contactUrgenceTelephone: data.contactUrgenceTelephone,
         nomParent: data.nomParent,
         prenomParent: data.prenomParent,
         telephone: data.telephone,
@@ -100,6 +105,11 @@ export class InscriptionsService {
       genre: demande.genre ?? undefined,
       classeId: data.classeId,
       parentId: parent.id,
+      photoUrl: demande.photoUrl ?? undefined,
+      ecolePrecedente: demande.ecolePrecedente ?? undefined,
+      besoinsParticuliers: demande.besoinsParticuliers ?? undefined,
+      contactUrgenceNom: demande.contactUrgenceNom ?? undefined,
+      contactUrgenceTelephone: demande.contactUrgenceTelephone ?? undefined,
     });
 
     // Marquer la demande comme approuvée

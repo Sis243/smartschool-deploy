@@ -45,6 +45,31 @@ export class CreateEleveDto {
   @IsOptional()
   @IsString()
   parentId?: string;
+
+  @ApiPropertyOptional({ description: 'URL de la photo (voir POST /uploads/photo-eleve)' })
+  @IsOptional()
+  @IsString()
+  photoUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  ecolePrecedente?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  besoinsParticuliers?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  contactUrgenceNom?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  contactUrgenceTelephone?: string;
 }
 
 export class UpdateEleveDto extends PartialType(CreateEleveDto) {}

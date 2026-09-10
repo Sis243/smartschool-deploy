@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, use } from 'react';
+import { useState, use, useRef } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { CheckCircle, School, User, Users, ChevronRight, ChevronLeft, Loader2 } from 'lucide-react';
+import { CheckCircle, School, User, Users, ChevronRight, ChevronLeft, Loader2, Heart, Camera, X, Printer } from 'lucide-react';
+import Link from 'next/link';
 import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,12 +17,14 @@ const publicApi = axios.create({ baseURL: API_URL });
 
 const NIVEAUX = ['Maternelle', 'CP', 'CE1', 'CE2', 'CM1', 'CM2', '1ère A', '2ème A', '3ème A', '4ème A', '5ème A', '6ème A', 'Autre'];
 
-type Step = 'enfant' | 'parent' | 'confirmation';
+type Step = 'enfant' | 'sante' | 'parent' | 'confirmation';
 
 export default function InscriptionPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = use(params);
   const [step, setStep] = useState<Step>('enfant');
   const [submitted, setSubmitted] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [enfant, setEnfant] = useState({
     prenomEnfant: '',
@@ -31,6 +34,14 @@ export default function InscriptionPage({ params }: { params: Promise<{ slug: st
     genre: '',
     classeVisee: '',
     anneeScolaire: new Date().getFullYear() + '-' + (new Date().getFullYear() + 1),
+    photoUrl: '',
+  });
+
+  const [sante, setSante] = useState({
+    ecolePrecedente: '',
+    besoinsParticuliers: '',
+    contactUrgenceNom: '',
+    contactUrgenceTelephone: '',
   });
 
   const [parent, setParent] = useState({
@@ -48,8 +59,24 @@ export default function InscriptionPage({ params }: { params: Promise<{ slug: st
     retry: false,
   });
 
+  const uploaderPhoto = async (file: File) => {
+    setPhotoUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const { data } = await publicApi.post('/api/v1/uploads/photo-inscription', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setEnfant((e) => ({ ...e, photoUrl: data.data.url }));
+    } catch {
+      toast.error('Erreur lors de l\'envoi de la photo — réessayez');
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
   const mutation = useMutation({
-    mutationFn: () => publicApi.post(`/api/v1/inscriptions/soumettre/${slug}`, { ...enfant, ...parent }),
+    mutationFn: () => publicApi.post(`/api/v1/inscriptions/soumettre/${slug}`, { ...enfant, ...sante, ...parent }),
     onSuccess: () => setSubmitted(true),
     onError: () => toast.error('Erreur lors de l\'envoi. Vérifiez les informations et réessayez.'),
   });
@@ -69,7 +96,12 @@ export default function InscriptionPage({ params }: { params: Promise<{ slug: st
               Votre demande d'inscription pour <strong>{enfant.prenomEnfant} {enfant.nomEnfant}</strong> a bien été reçue.
               L'école vous contactera dans les plus brefs délais au <strong>{parent.telephone}</strong>.
             </p>
-            <Button variant="outline" className="mt-4" onClick={() => { setSubmitted(false); setStep('enfant'); setEnfant({ prenomEnfant: '', nomEnfant: '', dateNaissance: '', lieuNaissance: '', genre: '', classeVisee: '', anneeScolaire: enfant.anneeScolaire }); setParent({ prenomParent: '', nomParent: '', telephone: '', email: '', adresse: '', lienFiliation: '' }); }}>
+            <Button variant="outline" className="mt-4" onClick={() => {
+              setSubmitted(false); setStep('enfant');
+              setEnfant({ prenomEnfant: '', nomEnfant: '', dateNaissance: '', lieuNaissance: '', genre: '', classeVisee: '', anneeScolaire: enfant.anneeScolaire, photoUrl: '' });
+              setSante({ ecolePrecedente: '', besoinsParticuliers: '', contactUrgenceNom: '', contactUrgenceTelephone: '' });
+              setParent({ prenomParent: '', nomParent: '', telephone: '', email: '', adresse: '', lienFiliation: '' });
+            }}>
               Nouvelle demande
             </Button>
           </CardContent>
@@ -80,6 +112,7 @@ export default function InscriptionPage({ params }: { params: Promise<{ slug: st
 
   const steps: { id: Step; label: string; icon: any }[] = [
     { id: 'enfant', label: 'Enfant', icon: User },
+    { id: 'sante', label: 'Santé', icon: Heart },
     { id: 'parent', label: 'Parent', icon: Users },
     { id: 'confirmation', label: 'Confirmation', icon: CheckCircle },
   ];
@@ -162,15 +195,75 @@ export default function InscriptionPage({ params }: { params: Promise<{ slug: st
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-1.5">
+                  <Label>Photo de l&apos;enfant (optionnel)</Label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) uploaderPhoto(f); }}
+                  />
+                  {enfant.photoUrl ? (
+                    <div className="flex items-center gap-3">
+                      <img src={enfant.photoUrl} alt="Photo" className="w-14 h-14 rounded-lg object-cover border border-border" />
+                      <Button type="button" variant="outline" size="sm" className="gap-1.5 text-red-600" onClick={() => setEnfant({ ...enfant, photoUrl: '' })}>
+                        <X className="w-3.5 h-3.5" />Retirer
+                      </Button>
+                    </div>
+                  ) : (
+                    <Button type="button" variant="outline" className="w-full gap-2" disabled={photoUploading} onClick={() => fileInputRef.current?.click()}>
+                      {photoUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                      {photoUploading ? 'Envoi...' : 'Ajouter une photo'}
+                    </Button>
+                  )}
+                </div>
                 <Button className="w-full bg-blue-600 hover:bg-blue-500 gap-2"
                   disabled={!enfant.prenomEnfant || !enfant.nomEnfant}
-                  onClick={() => setStep('parent')}>
+                  onClick={() => setStep('sante')}>
                   Suivant <ChevronRight className="w-4 h-4" />
                 </Button>
               </>
             )}
 
-            {/* Étape 2 : Parent */}
+            {/* Étape 2 : Santé & contact d'urgence */}
+            {step === 'sante' && (
+              <>
+                <CardHeader className="px-0 pt-0 pb-2">
+                  <CardTitle className="text-base">Santé & contact d&apos;urgence</CardTitle>
+                </CardHeader>
+                <div className="space-y-1.5">
+                  <Label>École précédente</Label>
+                  <Input placeholder="ex: École primaire du Centre" value={sante.ecolePrecedente} onChange={e => setSante({ ...sante, ecolePrecedente: e.target.value })} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Besoins particuliers / informations de santé</Label>
+                  <textarea rows={3} placeholder="Allergies, traitement en cours, besoins spécifiques..." value={sante.besoinsParticuliers} onChange={e => setSante({ ...sante, besoinsParticuliers: e.target.value })}
+                    className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <Label>Contact d&apos;urgence (nom)</Label>
+                    <Input placeholder="ex: Marie Kabila" value={sante.contactUrgenceNom} onChange={e => setSante({ ...sante, contactUrgenceNom: e.target.value })} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Téléphone</Label>
+                    <Input placeholder="+243 ..." value={sante.contactUrgenceTelephone} onChange={e => setSante({ ...sante, contactUrgenceTelephone: e.target.value })} />
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground">Personne à contacter en cas d&apos;urgence si les parents sont injoignables. Toute cette section est optionnelle.</p>
+                <div className="flex gap-3">
+                  <Button variant="outline" className="flex-1 gap-2" onClick={() => setStep('enfant')}>
+                    <ChevronLeft className="w-4 h-4" /> Retour
+                  </Button>
+                  <Button className="flex-1 bg-blue-600 hover:bg-blue-500 gap-2" onClick={() => setStep('parent')}>
+                    Suivant <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              </>
+            )}
+
+            {/* Étape 3 : Parent */}
             {step === 'parent' && (
               <>
                 <CardHeader className="px-0 pt-0 pb-2">
@@ -211,7 +304,7 @@ export default function InscriptionPage({ params }: { params: Promise<{ slug: st
                   </Select>
                 </div>
                 <div className="flex gap-3">
-                  <Button variant="outline" className="flex-1 gap-2" onClick={() => setStep('enfant')}>
+                  <Button variant="outline" className="flex-1 gap-2" onClick={() => setStep('sante')}>
                     <ChevronLeft className="w-4 h-4" /> Retour
                   </Button>
                   <Button className="flex-1 bg-blue-600 hover:bg-blue-500 gap-2"
@@ -232,12 +325,25 @@ export default function InscriptionPage({ params }: { params: Promise<{ slug: st
                 <div className="space-y-4">
                   <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 space-y-2">
                     <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 uppercase tracking-wider">Enfant</p>
-                    <p className="font-semibold">{enfant.prenomEnfant} {enfant.nomEnfant}</p>
+                    <div className="flex items-center gap-3">
+                      {enfant.photoUrl && <img src={enfant.photoUrl} alt="" className="w-10 h-10 rounded-lg object-cover" />}
+                      <p className="font-semibold">{enfant.prenomEnfant} {enfant.nomEnfant}</p>
+                    </div>
                     <div className="text-sm text-muted-foreground space-y-0.5">
                       {enfant.dateNaissance && <p>Né(e) le {new Date(enfant.dateNaissance).toLocaleDateString('fr-FR')}{enfant.lieuNaissance ? ` à ${enfant.lieuNaissance}` : ''}</p>}
                       {enfant.classeVisee && <p>Classe souhaitée : {enfant.classeVisee}</p>}
                     </div>
                   </div>
+                  {(sante.ecolePrecedente || sante.besoinsParticuliers || sante.contactUrgenceNom) && (
+                    <div className="bg-rose-50 dark:bg-rose-900/20 rounded-lg p-4 space-y-2">
+                      <p className="text-xs font-semibold text-rose-600 dark:text-rose-400 uppercase tracking-wider">Santé & urgence</p>
+                      <div className="text-sm text-muted-foreground space-y-0.5">
+                        {sante.ecolePrecedente && <p>École précédente : {sante.ecolePrecedente}</p>}
+                        {sante.besoinsParticuliers && <p>Besoins particuliers : {sante.besoinsParticuliers}</p>}
+                        {sante.contactUrgenceNom && <p>Contact d&apos;urgence : {sante.contactUrgenceNom} {sante.contactUrgenceTelephone && `(${sante.contactUrgenceTelephone})`}</p>}
+                      </div>
+                    </div>
+                  )}
                   <div className="bg-slate-50 dark:bg-slate-800 rounded-lg p-4 space-y-2">
                     <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Parent / Tuteur</p>
                     <p className="font-semibold">{parent.prenomParent} {parent.nomParent}</p>
@@ -263,7 +369,15 @@ export default function InscriptionPage({ params }: { params: Promise<{ slug: st
           </CardContent>
         </Card>
 
-        <p className="text-center text-xs text-muted-foreground mt-6 pb-8">
+        <div className="flex justify-center mt-4">
+          <Link href={`/inscription/${slug}/imprimer`} target="_blank">
+            <Button variant="ghost" size="sm" className="gap-2 text-muted-foreground">
+              <Printer className="w-3.5 h-3.5" />Pas d&apos;internet ? Télécharger le formulaire vierge
+            </Button>
+          </Link>
+        </div>
+
+        <p className="text-center text-xs text-muted-foreground mt-2 pb-8">
           Powered by SmartSchool ERP — Vos données sont sécurisées
         </p>
       </div>

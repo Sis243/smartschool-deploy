@@ -437,6 +437,10 @@ model Eleve {
   classeId     String?
   parentId     String?
   adresse      String?
+  ecolePrecedente         String?
+  besoinsParticuliers     String? // besoins spéciaux / informations de santé notables
+  contactUrgenceNom       String?
+  contactUrgenceTelephone String?
   isActive     Boolean   @default(true)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -941,6 +945,13 @@ model DemandeInscription {
   genre            String?
   classeVisee      String?   // ex: "6ème", "CP"
   anneeScolaire    String?   // ex: "2025-2026"
+  photoUrl         String?
+  ecolePrecedente  String?
+  besoinsParticuliers String? // besoins spéciaux / informations de santé notables
+
+  // Contact d'urgence (distinct du parent/tuteur ci-dessous)
+  contactUrgenceNom       String?
+  contactUrgenceTelephone String?
 
   // Infos parent/tuteur
   nomParent        String

@@ -46,6 +46,36 @@ export class SoumettreInscriptionDto {
   @IsString()
   anneeScolaire?: string;
 
+  @ApiPropertyOptional()
+  @Transform(emptyToUndefined)
+  @IsOptional()
+  @IsString()
+  photoUrl?: string;
+
+  @ApiPropertyOptional()
+  @Transform(emptyToUndefined)
+  @IsOptional()
+  @IsString()
+  ecolePrecedente?: string;
+
+  @ApiPropertyOptional()
+  @Transform(emptyToUndefined)
+  @IsOptional()
+  @IsString()
+  besoinsParticuliers?: string;
+
+  @ApiPropertyOptional()
+  @Transform(emptyToUndefined)
+  @IsOptional()
+  @IsString()
+  contactUrgenceNom?: string;
+
+  @ApiPropertyOptional()
+  @Transform(emptyToUndefined)
+  @IsOptional()
+  @IsString()
+  contactUrgenceTelephone?: string;
+
   @ApiProperty()
   @IsString()
   nomParent: string;

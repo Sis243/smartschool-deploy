@@ -48,6 +48,24 @@ export class UploadsController {
     return { url, nom: file.originalname, taille: file.size };
   }
 
+  // Public — aucune auth : le formulaire d'inscription en ligne est rempli
+  // par un parent qui n'a pas encore de compte (ni staff, ni portail parent).
+  // Limite basse + filtre image strict pour limiter l'abus d'un endpoint ouvert.
+  @Post('photo-inscription')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: 3 * 1024 * 1024 }, // 3 MB
+      fileFilter: imageFilter(['.jpg', '.jpeg', '.png', '.webp']),
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  async uploadPhotoInscription(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new BadRequestException('Aucun fichier reçu');
+    const url = await this.storageService.upload('inscriptions', file);
+    return { url, nom: file.originalname, taille: file.size };
+  }
+
   @Post('photo-eleve')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)

@@ -82,8 +82,16 @@ function ApprobationDialog({ demande, onClose }: { demande: any; onClose: () => 
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="bg-muted/40 rounded-lg p-3 text-sm space-y-1">
+              {demande.photoUrl && (
+                <img src={demande.photoUrl} alt="" className="w-14 h-14 rounded-lg object-cover mb-1" />
+              )}
               <p><span className="text-muted-foreground">Classe souhaitée :</span> <strong>{demande.classeVisee ?? '—'}</strong></p>
               <p><span className="text-muted-foreground">Parent indiqué sur la demande :</span> {demande.prenomParent} {demande.nomParent} — {demande.telephone}</p>
+              {demande.ecolePrecedente && <p><span className="text-muted-foreground">École précédente :</span> {demande.ecolePrecedente}</p>}
+              {demande.besoinsParticuliers && <p><span className="text-muted-foreground">Besoins particuliers :</span> {demande.besoinsParticuliers}</p>}
+              {demande.contactUrgenceNom && (
+                <p><span className="text-muted-foreground">Contact d&apos;urgence :</span> {demande.contactUrgenceNom} {demande.contactUrgenceTelephone && `(${demande.contactUrgenceTelephone})`}</p>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -348,6 +356,11 @@ export function InscriptionsView() {
             <Button size="sm" variant="ghost" className="h-7 px-2" onClick={copyLink}>
               <Copy className="w-3.5 h-3.5" />
             </Button>
+            <a href={`/inscription/${tenantSlug}/imprimer`} target="_blank" rel="noopener noreferrer">
+              <Button size="sm" variant="outline" className="h-7 px-2 text-xs gap-1.5">
+                Formulaire vierge
+              </Button>
+            </a>
           </div>
         )}
       </div>
