@@ -64,12 +64,17 @@ export class CommunicationService {
       ),
     });
 
-    // Traitement asynchrone (dans une version complète, on utiliserait une queue Bull)
-    this.traiterNotifications(notification.id, tenantId).catch((err) =>
-      this.logger.error('Erreur traitement notifications', err),
-    );
+    // Attendu (pas fire-and-forget) : sur Vercel, la fonction serverless est
+    // figée dès que la réponse HTTP part, donc une promesse non attendue ici
+    // peut ne jamais s'exécuter jusqu'au bout — les envois se marquaient
+    // silencieusement EN_ATTENTE pour toujours selon le hasard du timing.
+    try {
+      await this.traiterNotifications(notification.id, tenantId);
+    } catch (err) {
+      this.logger.error('Erreur traitement notifications', err as Error);
+    }
 
-    return notification;
+    return this.prisma.notification.findUnique({ where: { id: notification.id } });
   }
 
   private async traiterNotifications(notificationId: string, tenantId: string) {
