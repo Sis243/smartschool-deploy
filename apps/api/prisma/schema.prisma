@@ -383,7 +383,9 @@ model Horaire {
 model Eleve {
   id           String    @id @default(cuid())
   tenantId     String
-  matricule    String    @unique
+  // Unique par école, pas globalement : deux établissements différents
+  // peuvent légitimement attribuer le même matricule.
+  matricule    String
   nom          String
   prenom       String
   dateNaissance DateTime?
@@ -415,6 +417,7 @@ model Eleve {
   routines      Routine[]
   suiviMaternelle SuiviMaternelle[]
 
+  @@unique([tenantId, matricule])
   @@map("eleves")
 }
 
@@ -617,7 +620,10 @@ model Paiement {
 model Bus {
   id            String   @id @default(cuid())
   tenantId      String
-  immatriculation String @unique
+  // Unique par école, pas globalement (voir Eleve.matricule pour le même
+  // raisonnement) — deux écoles peuvent avoir un bus à la même plaque si
+  // elles sont dans des juridictions différentes, ou simplement par coïncidence.
+  immatriculation String
   marque        String?
   capacite      Int
   destination   String?
@@ -630,6 +636,7 @@ model Bus {
   itineraires Itineraire[]
   abonnes     TransportAbonnement[]
 
+  @@unique([tenantId, immatriculation])
   @@map("bus")
 }
 

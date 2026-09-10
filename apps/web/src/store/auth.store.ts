@@ -30,13 +30,15 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (email, password) => {
         const { data } = await api.post('/api/v1/auth/login', { email, password });
-        const { accessToken, user } = data.data;
+        const { accessToken, refreshToken, user } = data.data;
         localStorage.setItem('access_token', accessToken);
+        if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
         set({ user, accessToken, isAuthenticated: true });
       },
 
       logout: () => {
         localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
         set({ user: null, accessToken: null, isAuthenticated: false });
         window.location.href = '/login';
       },

@@ -36,6 +36,13 @@ export class AuthController {
   }
 
   @Public()
+  @Post('refresh')
+  @ApiOperation({ summary: 'Renouveler la session avec le refresh token' })
+  async refresh(@Body() body: { refreshToken: string }) {
+    return this.authService.refresh(body.refreshToken);
+  }
+
+  @Public()
   @Post('forgot-password')
   @ApiOperation({ summary: 'Demander un lien de réinitialisation de mot de passe' })
   async forgotPassword(@Body() dto: ForgotPasswordDto) {

@@ -44,6 +44,33 @@ export class AuthService {
     return result;
   }
 
+  // Renouvelle une session à partir du refresh token (durée de vie longue),
+  // sans exiger de se reconnecter avec email/mot de passe. Jusqu'ici ce
+  // jeton était émis à la connexion mais jamais utilisé nulle part — la
+  // session expirait donc au bout de JWT_EXPIRES_IN (7 jours) au lieu de se
+  // renouveler silencieusement.
+  async refresh(refreshToken: string) {
+    let payload: { sub: string };
+    try {
+      payload = await this.jwtService.verifyAsync(refreshToken, {
+        secret: this.configService.get<string>('jwt.refreshSecret'),
+      });
+    } catch {
+      throw new UnauthorizedException('Session expirée, veuillez vous reconnecter');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub, isActive: true },
+      select: {
+        id: true, email: true, firstName: true, lastName: true,
+        role: true, tenantId: true, isSuperAdmin: true,
+      },
+    });
+    if (!user) throw new UnauthorizedException('Session expirée, veuillez vous reconnecter');
+
+    return this.generateTokens(user);
+  }
+
   async login(dto: LoginDto, tenantId?: string) {
     const user = await this.validateUser(dto.email, dto.password);
     if (!user) {

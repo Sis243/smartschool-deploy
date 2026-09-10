@@ -187,7 +187,7 @@ export class ElevesService {
         where: { tenantId, matricule: { startsWith: prefix } },
       });
       const matricule = `${prefix}${String(count + 1 + attempt).padStart(4, '0')}`;
-      const exists = await this.prisma.eleve.findUnique({ where: { matricule } });
+      const exists = await this.prisma.eleve.findUnique({ where: { tenantId_matricule: { tenantId, matricule } } });
       if (!exists) return matricule;
     }
 

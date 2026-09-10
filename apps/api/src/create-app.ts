@@ -9,6 +9,7 @@ const helmet = require('helmet');
 const compression = require('compression');
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
 // Configuration partagée entre le serveur classique (main.ts, Docker/local)
@@ -57,7 +58,7 @@ export async function createApp() {
     }),
   );
 
-  app.useGlobalFilters(new HttpExceptionFilter());
+  app.useGlobalFilters(new PrismaExceptionFilter(), new HttpExceptionFilter());
   app.useGlobalInterceptors(new TransformInterceptor());
 
   if (nodeEnv !== 'production') {
