@@ -17,6 +17,17 @@
     "db:seed": "ts-node prisma/seed.ts",
     "db:studio": "prisma studio"
   },
+  "jest": {
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "moduleFileExtensions": ["js", "json", "ts"],
+    "collectCoverageFrom": ["**/*.(t|j)s"],
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node"
+  },
   "dependencies": {
     "@nestjs/common": "^10.3.0",
     "@nestjs/config": "^3.2.0",
@@ -60,6 +71,7 @@
     "@nestjs/testing": "^10.3.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/compression": "^1.7.5",
+    "@types/jest": "^30.0.0",
     "@types/multer": "^1.4.11",
     "@types/nodemailer": "^6.4.14",
     "@types/passport-jwt": "^4.0.1",
@@ -67,6 +79,8 @@
     "@types/qrcode": "^1.5.5",
     "@types/uuid": "^9.0.8",
     "@types/web-push": "^3.6.4",
+    "jest": "^30.5.1",
+    "ts-jest": "^29.4.12",
     "ts-node": "^10.9.2",
     "typescript": "^5.4.0"
   }
