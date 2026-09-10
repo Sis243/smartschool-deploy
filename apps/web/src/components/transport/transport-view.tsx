@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Bus, MapPin, Users, Plus, UserCheck, X } from 'lucide-react';
+import { Bus, MapPin, Users, Plus, UserCheck, X, Search, Trash2, Route } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -20,19 +20,20 @@ import api from '@/lib/api';
 // ─── Dialog Nouveau bus ───────────────────────────────────────────────────────
 function BusDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ immatriculation: '', marque: '', capacite: '', itineraire: '' });
+  const [form, setForm] = useState({ immatriculation: '', marque: '', capacite: '', destination: '' });
 
   const mutation = useMutation({
     mutationFn: () => api.post('/api/v1/transport/bus', {
       immatriculation: form.immatriculation,
       marque: form.marque,
       capacite: Number(form.capacite),
+      destination: form.destination || undefined,
     }),
     onSuccess: () => {
       toast.success('Bus ajouté');
       qc.invalidateQueries({ queryKey: ['bus'] });
       onClose();
-      setForm({ immatriculation: '', marque: '', capacite: '', itineraire: '' });
+      setForm({ immatriculation: '', marque: '', capacite: '', destination: '' });
     },
     onError: () => toast.error('Erreur lors de l\'ajout'),
   });
@@ -55,6 +56,10 @@ function BusDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
               <Label>Capacité (places)</Label>
               <Input type="number" placeholder="ex: 30" value={form.capacite} onChange={(e) => setForm({ ...form, capacite: e.target.value })} />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Destination</Label>
+            <Input placeholder="ex: Kinshasa - Gombe" value={form.destination} onChange={(e) => setForm({ ...form, destination: e.target.value })} />
           </div>
         </div>
         <DialogFooter>
@@ -130,17 +135,103 @@ function AbonnementDialog({ open, onClose }: { open: boolean; onClose: () => voi
   );
 }
 
+// ─── Dialog Arrêts (itinéraire) ────────────────────────────────────────────────
+function ArretsDialog({ bus, onClose }: { bus: any; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [arret, setArret] = useState('');
+  const [heurePrevue, setHeurePrevue] = useState('');
+
+  const { data: itineraires = [], isLoading } = useQuery({
+    queryKey: ['itineraires', bus?.id],
+    queryFn: async () => (await api.get(`/api/v1/transport/bus/${bus.id}/itineraires`)).data.data ?? [],
+    enabled: !!bus,
+  });
+
+  const invalider = () => {
+    qc.invalidateQueries({ queryKey: ['itineraires', bus.id] });
+    qc.invalidateQueries({ queryKey: ['bus'] });
+  };
+
+  const ajouter = useMutation({
+    mutationFn: () => api.post(`/api/v1/transport/bus/${bus.id}/itineraires`, { arret, heurePrevue: heurePrevue || undefined }),
+    onSuccess: () => { toast.success('Arrêt ajouté'); invalider(); setArret(''); setHeurePrevue(''); },
+    onError: () => toast.error('Erreur lors de l\'ajout'),
+  });
+
+  const supprimer = useMutation({
+    mutationFn: (id: string) => api.delete(`/api/v1/transport/itineraires/${id}`),
+    onSuccess: () => { toast.success('Arrêt supprimé'); invalider(); },
+    onError: () => toast.error('Erreur'),
+  });
+
+  return (
+    <Dialog open={!!bus} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Arrêts — {bus?.immatriculation}</DialogTitle></DialogHeader>
+        <div className="space-y-3 py-2">
+          {isLoading ? (
+            <Skeleton className="h-24 w-full" />
+          ) : itineraires.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">Aucun arrêt configuré</p>
+          ) : (
+            <div className="space-y-1.5 max-h-52 overflow-y-auto">
+              {(itineraires as any[]).map((it: any, i: number) => (
+                <div key={it.id} className="flex items-center gap-2 bg-muted/40 rounded-lg px-3 py-2">
+                  <span className="text-xs font-mono text-muted-foreground w-5">{i + 1}.</span>
+                  <MapPin className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                  <span className="flex-1 text-sm">{it.arret}</span>
+                  {it.heurePrevue && <span className="text-xs text-muted-foreground">{it.heurePrevue}</span>}
+                  <Button
+                    size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-red-500 shrink-0"
+                    disabled={supprimer.isPending}
+                    onClick={() => supprimer.mutate(it.id)}
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex gap-2 pt-2 border-t border-border/60">
+            <Input placeholder="Nom de l'arrêt" value={arret} onChange={(e) => setArret(e.target.value)} className="flex-1" />
+            <Input type="time" value={heurePrevue} onChange={(e) => setHeurePrevue(e.target.value)} className="w-28" />
+            <Button size="icon" className="shrink-0 bg-blue-600 hover:bg-blue-500" disabled={!arret.trim() || ajouter.isPending} onClick={() => ajouter.mutate()}>
+              <Plus className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Fermer</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Onglet Bus ───────────────────────────────────────────────────────────────
 function BusTab() {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const { data: bus = [], isLoading } = useQuery({
+  const [busArrets, setBusArrets] = useState<any | null>(null);
+  const [search, setSearch] = useState('');
+  const { data: busData = [], isLoading } = useQuery({
     queryKey: ['bus'],
     queryFn: async () => (await api.get('/api/v1/transport/bus')).data.data,
+  });
+
+  const bus = (busData as any[]).filter((b) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return `${b.immatriculation} ${b.marque ?? ''} ${b.destination ?? ''}`.toLowerCase().includes(q);
   });
 
   return (
     <>
       <BusDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
+      {busArrets && <ArretsDialog bus={busArrets} onClose={() => setBusArrets(null)} />}
+      <div className="relative w-64 mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input placeholder="Rechercher un bus, destination..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {isLoading ? (
           Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40 w-full rounded-xl" />)
@@ -165,6 +256,11 @@ function BusTab() {
                   </div>
                   <p className="font-bold text-lg">{b.immatriculation}</p>
                   {b.marque && <p className="text-sm text-muted-foreground">{b.marque}</p>}
+                  {b.destination && (
+                    <p className="flex items-center gap-1 text-xs text-orange-600 dark:text-orange-400 mt-1">
+                      <MapPin className="w-3 h-3" />{b.destination}
+                    </p>
+                  )}
                   <div className="flex items-center gap-4 mt-3 text-sm text-muted-foreground">
                     <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{b.capacite ?? '—'} places</span>
                     <span className="flex items-center gap-1"><UserCheck className="w-3.5 h-3.5" />{b._count?.abonnes ?? 0} abonnés</span>
@@ -175,6 +271,9 @@ function BusTab() {
                       <span className="text-xs text-muted-foreground">{b.chauffeur.firstName} {b.chauffeur.lastName}</span>
                     </div>
                   )}
+                  <Button size="sm" variant="outline" className="w-full mt-3 gap-1.5 h-7 text-xs" onClick={() => setBusArrets(b)}>
+                    <Route className="w-3.5 h-3.5" />Arrêts ({b.itineraires?.length ?? 0})
+                  </Button>
                 </CardContent>
               </Card>
             ))}
@@ -195,9 +294,16 @@ function BusTab() {
 function AbonnementsTab() {
   const qc = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const { data: abonnements = [], isLoading } = useQuery({
+  const [search, setSearch] = useState('');
+  const { data: abonnementsData = [], isLoading } = useQuery({
     queryKey: ['abonnements'],
     queryFn: async () => (await api.get('/api/v1/transport/abonnements')).data.data,
+  });
+
+  const abonnements = (abonnementsData as any[]).filter((a) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return `${a.eleve?.prenom} ${a.eleve?.nom} ${a.eleve?.matricule} ${a.bus?.immatriculation}`.toLowerCase().includes(q);
   });
 
   const desabonner = useMutation({
@@ -214,11 +320,17 @@ function AbonnementsTab() {
       <AbonnementDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
       <Card className="border-border/50 shadow-sm">
         <CardHeader className="pb-0">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Abonnements ({(abonnements as any[]).length})</CardTitle>
-            <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={() => setDialogOpen(true)}>
-              <Plus className="w-4 h-4" />Abonner un élève
-            </Button>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle className="text-base">Abonnements ({(abonnementsData as any[]).length})</CardTitle>
+            <div className="flex items-center gap-2">
+              <div className="relative w-56">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                <Input placeholder="Rechercher un élève, un bus..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 text-sm" />
+              </div>
+              <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={() => setDialogOpen(true)}>
+                <Plus className="w-4 h-4" />Abonner un élève
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0 mt-4">

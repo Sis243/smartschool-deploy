@@ -620,6 +620,7 @@ model Bus {
   immatriculation String @unique
   marque        String?
   capacite      Int
+  destination   String?
   chauffeurId   String?
   isActive      Boolean  @default(true)
   createdAt     DateTime @default(now())

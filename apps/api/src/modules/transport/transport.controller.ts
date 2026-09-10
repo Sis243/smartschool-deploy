@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TransportService } from './transport.service';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
@@ -34,6 +34,38 @@ export class TransportController {
   @ApiOperation({ summary: 'Itinéraires d\'un bus' })
   getItineraires(@CurrentTenant('id') tenantId: string, @Param('busId') busId: string) {
     return this.transportService.getItineraires(tenantId, busId);
+  }
+
+  @Post('bus/:busId/itineraires')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTEUR', 'SECRETAIRE')
+  @ApiOperation({ summary: 'Ajouter un arrêt à un bus' })
+  createItineraire(
+    @CurrentTenant('id') tenantId: string,
+    @Param('busId') busId: string,
+    @Body() data: { arret: string; ordre?: number; heurePrevue?: string; latitude?: number; longitude?: number },
+  ) {
+    return this.transportService.createItineraire(tenantId, busId, data);
+  }
+
+  @Patch('itineraires/:id')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTEUR', 'SECRETAIRE')
+  @ApiOperation({ summary: 'Modifier un arrêt' })
+  updateItineraire(
+    @CurrentTenant('id') tenantId: string,
+    @Param('id') id: string,
+    @Body() data: { arret?: string; ordre?: number; heurePrevue?: string; latitude?: number; longitude?: number },
+  ) {
+    return this.transportService.updateItineraire(tenantId, id, data);
+  }
+
+  @Delete('itineraires/:id')
+  @UseGuards(RolesGuard)
+  @Roles('ADMIN', 'DIRECTEUR', 'SECRETAIRE')
+  @ApiOperation({ summary: 'Supprimer un arrêt' })
+  deleteItineraire(@CurrentTenant('id') tenantId: string, @Param('id') id: string) {
+    return this.transportService.deleteItineraire(tenantId, id);
   }
 
   @Get('abonnements')

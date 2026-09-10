@@ -33,6 +33,47 @@ export class TransportService {
     });
   }
 
+  private async verifierBus(tenantId: string, busId: string) {
+    const bus = await this.prisma.bus.findFirst({ where: { id: busId, tenantId } });
+    if (!bus) throw new NotFoundException('Bus introuvable');
+  }
+
+  async createItineraire(tenantId: string, busId: string, data: {
+    arret: string; ordre?: number; heurePrevue?: string; latitude?: number; longitude?: number;
+  }) {
+    await this.verifierBus(tenantId, busId);
+    const dernier = await this.prisma.itineraire.findFirst({
+      where: { tenantId, busId },
+      orderBy: { ordre: 'desc' },
+    });
+    return this.prisma.itineraire.create({
+      data: {
+        tenantId,
+        busId,
+        arret: data.arret,
+        ordre: data.ordre ?? (dernier ? dernier.ordre + 1 : 1),
+        heurePrevue: data.heurePrevue,
+        latitude: data.latitude,
+        longitude: data.longitude,
+      },
+    });
+  }
+
+  async updateItineraire(tenantId: string, id: string, data: {
+    arret?: string; ordre?: number; heurePrevue?: string; latitude?: number; longitude?: number;
+  }) {
+    const itineraire = await this.prisma.itineraire.findFirst({ where: { id, tenantId } });
+    if (!itineraire) throw new NotFoundException('Arrêt introuvable');
+    return this.prisma.itineraire.update({ where: { id }, data });
+  }
+
+  async deleteItineraire(tenantId: string, id: string) {
+    const itineraire = await this.prisma.itineraire.findFirst({ where: { id, tenantId } });
+    if (!itineraire) throw new NotFoundException('Arrêt introuvable');
+    await this.prisma.itineraire.delete({ where: { id } });
+    return { message: 'Arrêt supprimé' };
+  }
+
   async getAbonnements(tenantId: string) {
     return this.prisma.transportAbonnement.findMany({
       where: { tenantId, isActive: true },
