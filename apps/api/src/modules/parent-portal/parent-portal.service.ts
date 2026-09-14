@@ -290,6 +290,17 @@ export class ParentPortalService {
       html,
     );
 
-    return { accessCode: code, envoye };
+    // Envoi WhatsApp en plus de l'email (best-effort) : le lien est ce qui
+    // compte le plus pour un parent qui consulte surtout son téléphone —
+    // ne bloque jamais sur l'email si WhatsApp n'est pas configuré côté Brevo.
+    let envoyeWhatsapp = false;
+    if (parent.telephone) {
+      envoyeWhatsapp = await this.brevo.sendWhatsapp(
+        parent.telephone,
+        `Bonjour ${parent.prenom}, ${parent.tenant.name} vous invite à activer votre accès au portail parent SmartSchool.\nVotre code d'accès : ${code}\nActivez votre compte ici : ${lien}`,
+      );
+    }
+
+    return { accessCode: code, envoye, envoyeWhatsapp };
   }
 }

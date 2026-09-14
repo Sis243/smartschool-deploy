@@ -18,6 +18,13 @@ export class BrevoService {
     return !!this.configService.get<string>('brevo.apiKey');
   }
 
+  // WhatsApp exige un vrai numéro Business (E.164) distinct du nom
+  // d'expéditeur SMS — sans lui, Brevo répond systématiquement
+  // "senderNumber is invalid" ; autant ne pas tenter l'appel.
+  get whatsappConfigure(): boolean {
+    return this.isConfigured && !!this.configService.get<string>('brevo.whatsappSender');
+  }
+
   private headers() {
     return {
       'api-key': this.configService.get<string>('brevo.apiKey')!,
@@ -70,11 +77,11 @@ export class BrevoService {
   }
 
   async sendWhatsapp(to: string, texte: string) {
-    if (!this.isConfigured) return false;
+    if (!this.whatsappConfigure) return false;
     try {
       await axios.post(
         `${BREVO_API}/whatsapp/sendMessage`,
-        { contactNumbers: [to], senderNumber: this.configService.get<string>('brevo.smsSender'), text: texte },
+        { contactNumbers: [to], senderNumber: this.configService.get<string>('brevo.whatsappSender'), text: texte },
         { headers: this.headers() },
       );
       return true;

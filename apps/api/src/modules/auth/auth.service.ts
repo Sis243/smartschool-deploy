@@ -199,7 +199,10 @@ export class AuthService {
       where: { id: userId },
       include: { tenant: { select: { name: true } } },
     });
-    if (!user) return false;
+    // Le personnel d'appui (voir RhService.createPersonnel) n'a pas d'email
+    // et n'est jamais invité — vérification défensive, ce cas ne devrait
+    // jamais atteindre cette méthode.
+    if (!user || !user.email) return false;
 
     const rawToken = randomBytes(32).toString('hex');
     const hashedToken = createHash('sha256').update(rawToken).digest('hex');
@@ -229,13 +232,24 @@ export class AuthService {
       note: `Ce lien est valable 7 jours. Si vous ne vous attendiez pas à cet e-mail, vous pouvez l'ignorer sans risque.`,
     });
 
-    return this.brevo.sendEmail(
+    const envoye = await this.brevo.sendEmail(
       user.email,
       `Bienvenue${nomEtablissement ? ` sur ${nomEtablissement}` : ' sur SmartSchool ERP'}`,
       `Bonjour ${user.firstName},\n\nUn compte vient d'être créé pour vous sur SmartSchool ERP.\nVotre identifiant : ${user.email}\n\nActivez votre compte et choisissez votre mot de passe ici (valable 7 jours) :\n${lien}`,
       nomEtablissement,
       html,
     );
+
+    // WhatsApp en plus de l'email (best-effort) — voir ParentPortalService
+    // .genererAccessCode pour le même principe côté parents.
+    if (user.phone) {
+      await this.brevo.sendWhatsapp(
+        user.phone,
+        `Bonjour ${user.firstName}, un compte vient d'être créé pour vous${nomEtablissement ? ` sur ${nomEtablissement}` : ''} sur SmartSchool ERP.\nVotre identifiant : ${user.email}\nActivez votre compte ici (valable 7 jours) : ${lien}`,
+      );
+    }
+
+    return envoye;
   }
 
   async resetPassword(dto: ResetPasswordDto) {

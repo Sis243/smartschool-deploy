@@ -39,6 +39,10 @@ export default () => ({
     senderEmail: process.env.BREVO_SENDER_EMAIL || 'notifications@smartschool.cd',
     senderName: process.env.BREVO_SENDER_NAME || 'SmartSchool',
     smsSender: process.env.BREVO_SMS_SENDER || 'SmartSchool',
+    // Numéro WhatsApp Business (format E.164, ex: 33612345678) enregistré
+    // sur le compte Brevo — distinct de smsSender (un nom, pas un numéro) :
+    // les envoyer était l'une des causes de "senderNumber is invalid".
+    whatsappSender: process.env.BREVO_WHATSAPP_SENDER,
   },
   cors: {
     origin: process.env.CORS_ORIGIN || '*',
