@@ -23,7 +23,11 @@ interface TenantInfo {
   phone?: string | null;
 }
 
-const formatMontant = (n: number) => new Intl.NumberFormat('fr-FR').format(Math.round(n));
+// Espace normale, pas Intl.NumberFormat('fr-FR') : son séparateur de
+// milliers est une espace insécable étroite (U+202F), absente de
+// l'encodage WinAnsi que pdfkit utilise pour les polices standard — le
+// chiffre s'affichait donc avec un caractère manquant/invisible dans le PDF.
+const formatMontant = (n: number) => Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 
 @Injectable()
 export class PayslipPdfService {
@@ -39,8 +43,12 @@ export class PayslipPdfService {
     const brut = fiche.salaireBase + totalPrimes;
     const net = brut - totalDeductions;
 
+    // Calculé depuis la largeur réelle de la page (pas une constante fixe) :
+    // avec une page A5 (~420pt de large), un "right" pensé pour du A4 (595pt)
+    // dessinait tous les montants hors de la page — invisibles bien que le
+    // PDF soit valide, un bug qui ne se voit qu'en ouvrant le fichier.
     const left = 50;
-    const right = 545;
+    const right = doc.page.width - 50;
     let y = 50;
 
     doc.fontSize(16).font('Helvetica-Bold').text(tenant.name, left, y, { align: 'center', width: right - left });
