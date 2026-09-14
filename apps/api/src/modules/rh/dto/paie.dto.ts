@@ -42,4 +42,14 @@ export class CreateFichePaieDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({ description: 'Jours d\'absence non payés dans le mois' })
+  @IsOptional()
+  @IsNumber()
+  joursAbsence?: number;
+
+  @ApiPropertyOptional({ description: 'Jours de maladie dans le mois' })
+  @IsOptional()
+  @IsNumber()
+  joursMaladie?: number;
 }

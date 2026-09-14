@@ -1,5 +1,6 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, Query, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query, Res, UseGuards, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Response } from 'express';
 import { memoryStorage } from 'multer';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { RhService } from './rh.service';
@@ -98,6 +99,25 @@ export class RhController {
     return this.rhService.getFichesPaie(tenantId, { userId, periode });
   }
 
+  // Route littérale déclarée avant "paie/:id" pour ne pas être happée par
+  // le paramètre :id (Nest/Express matchent les routes dans l'ordre déclaré).
+  @Get('paie/export')
+  @RequireModule('PAIE')
+  @UseGuards(RolesGuard)
+  @Roles(...ROLES_PAIE)
+  @ApiOperation({ summary: 'Exporter en PDF toutes les fiches de paie d\'une période' })
+  async exportFichesPaie(
+    @CurrentTenant('id') tenantId: string,
+    @Query('periode') periode: string,
+    @Res() res: Response,
+  ) {
+    if (!periode) throw new BadRequestException('Période requise');
+    const { buffer, nomFichier } = await this.rhService.exportFichesPaiePdf(tenantId, periode);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${nomFichier}"`);
+    res.send(buffer);
+  }
+
   @Get('paie/:id')
   @RequireModule('PAIE')
   @UseGuards(RolesGuard)
@@ -105,6 +125,22 @@ export class RhController {
   @ApiOperation({ summary: "Détail d'une fiche de paie" })
   getFichePaieById(@CurrentTenant('id') tenantId: string, @Param('id') id: string) {
     return this.rhService.getFichePaieById(tenantId, id);
+  }
+
+  @Get('paie/:id/export')
+  @RequireModule('PAIE')
+  @UseGuards(RolesGuard)
+  @Roles(...ROLES_PAIE)
+  @ApiOperation({ summary: "Exporter une fiche de paie en PDF" })
+  async exportFichePaie(
+    @CurrentTenant('id') tenantId: string,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const { buffer, nomFichier } = await this.rhService.exportFichePaiePdf(tenantId, id);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${nomFichier}"`);
+    res.send(buffer);
   }
 
   @Post('paie')

@@ -537,13 +537,17 @@ enum TypeLignePaie {
 }
 
 model FichePaie {
-  id          String          @id @default(cuid())
-  tenantId    String
-  userId      String
-  periode     String          // ex: "2026-09" (année-mois)
-  salaireBase Float
-  statut      StatutFichePaie @default(BROUILLON)
-  notes       String?
+  id            String          @id @default(cuid())
+  tenantId      String
+  userId        String
+  periode       String          // ex: "2026-09" (année-mois)
+  salaireBase   Float
+  // Jours d'absence/maladie du mois — informatif, distinct des lignes
+  // monétaires (voir LignePaie) : n'entre pas dans le calcul du net.
+  joursAbsence  Int?
+  joursMaladie  Int?
+  statut        StatutFichePaie @default(BROUILLON)
+  notes         String?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 

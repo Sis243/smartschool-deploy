@@ -7,12 +7,14 @@ import { CreatePersonnelDto } from './dto/personnel.dto';
 import { CreateFichePaieDto } from './dto/paie.dto';
 import { AuthService } from '../auth/auth.service';
 import { CATALOGUE_PAIE } from '../../common/constants/paie-catalogue';
+import { PayslipPdfService } from '../../common/services/payslip-pdf.service';
 
 @Injectable()
 export class RhService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly authService: AuthService,
+    private readonly payslipPdfService: PayslipPdfService,
   ) {}
 
   async findAllPersonnel(tenantId: string) {
@@ -155,6 +157,8 @@ export class RhService {
         periode: dto.periode,
         salaireBase: dto.salaireBase,
         notes: dto.notes,
+        joursAbsence: dto.joursAbsence,
+        joursMaladie: dto.joursMaladie,
         lignes: dto.lignes?.length
           ? { create: dto.lignes.map((l) => ({ type: l.type, libelle: l.libelle, montant: l.montant })) }
           : undefined,
@@ -181,6 +185,38 @@ export class RhService {
     }
     await this.prisma.fichePaie.delete({ where: { id } });
     return { message: 'Fiche de paie supprimée' };
+  }
+
+  // Export PDF d'une fiche individuelle (remise à l'employé).
+  async exportFichePaiePdf(tenantId: string, id: string): Promise<{ buffer: Buffer; nomFichier: string }> {
+    const [fiche, tenant] = await Promise.all([
+      this.prisma.fichePaie.findFirst({
+        where: { id, tenantId },
+        include: { user: { select: { firstName: true, lastName: true, role: true, poste: true } }, lignes: true },
+      }),
+      this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true, address: true, phone: true } }),
+    ]);
+    if (!fiche) throw new NotFoundException('Fiche de paie introuvable');
+
+    const buffer = await this.payslipPdfService.genererFichePdf(tenant!, fiche);
+    return { buffer, nomFichier: `fiche-paie-${fiche.user.lastName}-${fiche.periode}.pdf` };
+  }
+
+  // Export PDF "total" : toutes les fiches d'une période en un seul document
+  // (une page par employé) — pour l'archivage ou l'impression groupée.
+  async exportFichesPaiePdf(tenantId: string, periode: string): Promise<{ buffer: Buffer; nomFichier: string }> {
+    const [fiches, tenant] = await Promise.all([
+      this.prisma.fichePaie.findMany({
+        where: { tenantId, periode },
+        include: { user: { select: { firstName: true, lastName: true, role: true, poste: true } }, lignes: true },
+        orderBy: [{ user: { lastName: 'asc' } }],
+      }),
+      this.prisma.tenant.findUnique({ where: { id: tenantId }, select: { name: true, address: true, phone: true } }),
+    ]);
+    if (fiches.length === 0) throw new NotFoundException('Aucune fiche de paie pour cette période');
+
+    const buffer = await this.payslipPdfService.genererLotPdf(tenant!, fiches);
+    return { buffer, nomFichier: `paie-${periode}.pdf` };
   }
 
   // Import en masse depuis un fichier que l'école gère déjà ailleurs (Excel

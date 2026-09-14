@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Users, CheckCircle, Clock, Plus, Search, Trash2, Wallet, Eye, Settings2, Upload, Loader2 } from 'lucide-react';
+import { Users, CheckCircle, Clock, Plus, Search, Trash2, Wallet, Eye, Settings2, Upload, Loader2, Download } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -300,6 +300,26 @@ function formatMontant(n: number) {
   return new Intl.NumberFormat('fr-FR').format(n ?? 0);
 }
 
+// Les routes d'export renvoient un PDF binaire (pas l'enveloppe JSON
+// habituelle) — on le récupère en blob puis on déclenche le téléchargement
+// via un lien temporaire, comme pour l'export CSV des rapports.
+async function telechargerPdf(url: string, nomFichierParDefaut: string) {
+  try {
+    const response = await api.get(url, { responseType: 'blob' });
+    const blob = new Blob([response.data], { type: 'application/pdf' });
+    const objectUrl = URL.createObjectURL(blob);
+    const contentDisposition = response.headers['content-disposition'];
+    const nomFichier = contentDisposition?.match(/filename="(.+)"/)?.[1] ?? nomFichierParDefaut;
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = nomFichier;
+    a.click();
+    URL.revokeObjectURL(objectUrl);
+  } catch {
+    toast.error('Erreur lors du téléchargement du PDF');
+  }
+}
+
 type LignePaieForm = { type: 'PRIME' | 'DEDUCTION'; libelle: string; montant: string };
 
 // Formulaire volontairement libre : aucun champ de prime/déduction n'est
@@ -311,11 +331,13 @@ function PaieDialog({ open, onClose, personnel }: { open: boolean; onClose: () =
   const [userId, setUserId] = useState('');
   const [periode, setPeriode] = useState(moisCourant);
   const [salaireBase, setSalaireBase] = useState('');
+  const [joursAbsence, setJoursAbsence] = useState('');
+  const [joursMaladie, setJoursMaladie] = useState('');
   const [notes, setNotes] = useState('');
   const [lignes, setLignes] = useState<LignePaieForm[]>([]);
 
   const reset = () => {
-    setUserId(''); setPeriode(moisCourant); setSalaireBase(''); setNotes(''); setLignes([]);
+    setUserId(''); setPeriode(moisCourant); setSalaireBase(''); setJoursAbsence(''); setJoursMaladie(''); setNotes(''); setLignes([]);
   };
 
   const mutation = useMutation({
@@ -324,6 +346,8 @@ function PaieDialog({ open, onClose, personnel }: { open: boolean; onClose: () =
         userId,
         periode,
         salaireBase: Number(salaireBase) || 0,
+        joursAbsence: joursAbsence ? Number(joursAbsence) : undefined,
+        joursMaladie: joursMaladie ? Number(joursMaladie) : undefined,
         notes: notes || undefined,
         lignes: lignes
           .filter((l) => l.libelle && l.montant)
@@ -376,6 +400,16 @@ function PaieDialog({ open, onClose, personnel }: { open: boolean; onClose: () =
           <div className="space-y-1.5">
             <Label>Salaire de base *</Label>
             <Input type="number" placeholder="ex: 350000" value={salaireBase} onChange={(e) => setSalaireBase(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Jours d&apos;absence</Label>
+              <Input type="number" min="0" placeholder="0" value={joursAbsence} onChange={(e) => setJoursAbsence(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Jours de maladie</Label>
+              <Input type="number" min="0" placeholder="0" value={joursMaladie} onChange={(e) => setJoursMaladie(e.target.value)} />
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -474,18 +508,31 @@ function PaieDetailDialog({ id, onClose }: { id: string | null; onClose: () => v
                 </div>
               ))}
               <div className="flex justify-between font-semibold pt-2 border-t"><span>Net</span><span>{formatMontant(fiche.net)}</span></div>
+              {(fiche.joursAbsence || fiche.joursMaladie) && (
+                <div className="text-xs text-muted-foreground pt-1">
+                  {fiche.joursAbsence ? `${fiche.joursAbsence} jour(s) d'absence` : ''}
+                  {fiche.joursAbsence && fiche.joursMaladie ? ' · ' : ''}
+                  {fiche.joursMaladie ? `${fiche.joursMaladie} jour(s) de maladie` : ''}
+                </div>
+              )}
             </div>
             {fiche.notes && <p className="text-xs text-muted-foreground italic">{fiche.notes}</p>}
-            {fiche.statut !== 'PAYEE' && (
-              <div className="flex gap-2 pt-2">
-                {fiche.statut === 'BROUILLON' && (
-                  <Button size="sm" variant="outline" onClick={() => changerStatut.mutate('VALIDEE')} disabled={changerStatut.isPending}>Valider</Button>
-                )}
-                {fiche.statut === 'VALIDEE' && (
-                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-500" onClick={() => changerStatut.mutate('PAYEE')} disabled={changerStatut.isPending}>Marquer payée</Button>
-                )}
-              </div>
-            )}
+            <div className="flex gap-2 pt-2 flex-wrap">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => telechargerPdf(`/api/v1/rh/paie/${id}/export`, `fiche-paie-${fiche.periode}.pdf`)}
+              >
+                <Download className="w-3.5 h-3.5" />Télécharger PDF
+              </Button>
+              {fiche.statut === 'BROUILLON' && (
+                <Button size="sm" variant="outline" onClick={() => changerStatut.mutate('VALIDEE')} disabled={changerStatut.isPending}>Valider</Button>
+              )}
+              {fiche.statut === 'VALIDEE' && (
+                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-500" onClick={() => changerStatut.mutate('PAYEE')} disabled={changerStatut.isPending}>Marquer payée</Button>
+              )}
+            </div>
           </div>
         )}
       </DialogContent>
@@ -642,7 +689,16 @@ function PaieTab() {
         <CardHeader className="pb-0">
           <div className="flex flex-wrap gap-3 items-center justify-between">
             <Input type="month" value={periodeFiltre} onChange={(e) => setPeriodeFiltre(e.target.value)} className="w-44" />
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2"
+                disabled={!periodeFiltre || fiches.length === 0}
+                onClick={() => telechargerPdf(`/api/v1/rh/paie/export?periode=${periodeFiltre}`, `paie-${periodeFiltre}.pdf`)}
+              >
+                <Download className="w-4 h-4" />Exporter tout (PDF)
+              </Button>
               <Button size="sm" variant="outline" className="gap-2" onClick={() => setTypesPrimeOpen(true)}>
                 <Settings2 className="w-4 h-4" />Types de primes
               </Button>
@@ -679,7 +735,19 @@ function PaieTab() {
                   <TableCell className="text-sm text-muted-foreground">{f.periode}</TableCell>
                   <TableCell className="text-sm font-medium">{formatMontant(f.net)}</TableCell>
                   <TableCell><span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statutPaie[f.statut]?.cls}`}>{statutPaie[f.statut]?.label ?? f.statut}</span></TableCell>
-                  <TableCell><Button size="icon" variant="ghost" className="h-7 w-7"><Eye className="w-4 h-4" /></Button></TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      <Button size="icon" variant="ghost" className="h-7 w-7"><Eye className="w-4 h-4" /></Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7"
+                        onClick={(e) => { e.stopPropagation(); telechargerPdf(`/api/v1/rh/paie/${f.id}/export`, `fiche-paie-${f.periode}.pdf`); }}
+                      >
+                        <Download className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
