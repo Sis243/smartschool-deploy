@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen, DollarSign,
   UserCog, MessageSquare, Bus, Library, Heart, Brain, ClipboardList, Settings, ChevronLeft, ChevronRight, BarChart2,
-  ShieldCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
@@ -33,7 +32,6 @@ const navItems = [
   { href: '/inscriptions', label: 'Inscriptions', icon: ClipboardList, requires: 'canVoirInscriptions' as const },
   { href: '/rapports', label: 'Rapports & Exports', icon: BarChart2, requires: 'canVoirFinances' as const },
   { href: '/parametres', label: 'Paramètres', icon: Settings },
-  { href: '/super-admin', label: 'Super Administration', icon: ShieldCheck, requires: 'isSuperAdmin' as const },
 ];
 
 export function Sidebar() {

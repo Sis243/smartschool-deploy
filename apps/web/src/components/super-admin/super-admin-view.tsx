@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Building2, Users, GraduationCap, Settings2, Plus, CreditCard, Search } from 'lucide-react';
+import { Building2, Users, GraduationCap, Settings2, Plus, CreditCard, Search, LayoutDashboard } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -318,7 +319,9 @@ export function SuperAdminView() {
                 return (
                   <TableRow key={t.id}>
                     <TableCell>
-                      <p className="text-sm font-medium">{t.name}</p>
+                      <Link href={`/super-admin/${t.id}`} className="hover:underline">
+                        <p className="text-sm font-medium">{t.name}</p>
+                      </Link>
                       <p className="text-xs text-muted-foreground">{t.slug}</p>
                     </TableCell>
                     <TableCell>
@@ -344,6 +347,11 @@ export function SuperAdminView() {
                     </TableCell>
                     <TableCell>
                       <div className="flex gap-1.5">
+                        <Link href={`/super-admin/${t.id}`}>
+                          <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs">
+                            <LayoutDashboard className="w-3.5 h-3.5" />Tableau de bord
+                          </Button>
+                        </Link>
                         <Button size="sm" variant="outline" className="gap-1.5 h-7 text-xs" onClick={() => setTenantModules(t)}>
                           <Settings2 className="w-3.5 h-3.5" />Modules
                         </Button>

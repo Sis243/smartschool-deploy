@@ -40,7 +40,8 @@ export function LoginForm() {
     try {
       await login(data.email, data.password);
       toast.success('Connexion réussie');
-      router.push('/dashboard');
+      const estSuperAdmin = useAuthStore.getState().user?.isSuperAdmin;
+      router.push(estSuperAdmin ? '/super-admin' : '/dashboard');
     } catch {
       setError('Email ou mot de passe incorrect');
     } finally {

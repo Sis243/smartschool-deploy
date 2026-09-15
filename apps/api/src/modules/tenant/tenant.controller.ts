@@ -69,6 +69,14 @@ export class TenantController {
 
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
   @ApiBearerAuth()
+  @Get(':id/stats')
+  @ApiOperation({ summary: "Tableau de bord d'un établissement — élèves, personnel, finances (super admin)" })
+  getStats(@Param('id') id: string) {
+    return this.tenantService.getStats(id);
+  }
+
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
   @Patch(':id/toggle')
   @ApiOperation({ summary: 'Activer/Désactiver un établissement (super admin)' })
   toggle(@Param('id') id: string) {

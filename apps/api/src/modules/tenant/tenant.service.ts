@@ -100,6 +100,60 @@ export class TenantService {
     return tenant;
   }
 
+  // Vue d'ensemble d'une école pour la console super admin — jamais un accès
+  // aux écrans internes de l'école (élèves, notes...), juste assez de
+  // chiffres pour comprendre son activité sans "se connecter à sa place".
+  async getStats(tenantId: string) {
+    const tenant = await this.findOne(tenantId);
+    const debutMois = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+    const [
+      nbEleves, nbParents, nbClasses, personnelParRole,
+      totalRecettes, recettesMois, impayes,
+      demandesEnAttente, paiementsRecents, inscriptionsRecentes,
+    ] = await Promise.all([
+      this.prisma.eleve.count({ where: { tenantId, isActive: true } }),
+      this.prisma.parent.count({ where: { tenantId } }),
+      this.prisma.classe.count({ where: { tenantId } }),
+      this.prisma.user.groupBy({ by: ['role'], where: { tenantId, isActive: true }, _count: true }),
+      this.prisma.paiement.aggregate({ where: { tenantId }, _sum: { montant: true } }),
+      this.prisma.paiement.aggregate({ where: { tenantId, createdAt: { gte: debutMois } }, _sum: { montant: true } }),
+      this.prisma.facture.aggregate({
+        where: { tenantId, statut: { in: ['EN_ATTENTE', 'PARTIEL'] } },
+        _sum: { montantDu: true },
+        _count: true,
+      }),
+      this.prisma.demandeInscription.count({ where: { tenantId, statut: 'EN_ATTENTE' } }),
+      this.prisma.paiement.findMany({
+        where: { tenantId },
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        include: { eleve: { select: { nom: true, prenom: true } } },
+      }),
+      this.prisma.demandeInscription.findMany({
+        where: { tenantId },
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        select: { id: true, prenomEnfant: true, nomEnfant: true, statut: true, createdAt: true },
+      }),
+    ]);
+
+    return {
+      tenant,
+      nbEleves,
+      nbParents,
+      nbClasses,
+      personnelParRole: personnelParRole.map((p) => ({ role: p.role, total: p._count })),
+      totalRecettes: totalRecettes._sum.montant || 0,
+      recettesMois: recettesMois._sum.montant || 0,
+      montantImpaye: impayes._sum.montantDu || 0,
+      nombreImpaye: impayes._count,
+      demandesInscriptionEnAttente: demandesEnAttente,
+      paiementsRecents,
+      inscriptionsRecentes,
+    };
+  }
+
   async updateModules(tenantId: string, modules: string[]) {
     const invalides = modules.filter((m) => !MODULES_ACTIVABLES.includes(m as any));
     if (invalides.length > 0) {
