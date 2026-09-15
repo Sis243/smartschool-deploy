@@ -79,11 +79,16 @@ export class BrevoService {
   async sendWhatsapp(to: string, texte: string) {
     if (!this.whatsappConfigure) return false;
     try {
-      await axios.post(
+      const response = await axios.post(
         `${BREVO_API}/whatsapp/sendMessage`,
         { contactNumbers: [to], senderNumber: this.configService.get<string>('brevo.whatsappSender'), text: texte },
         { headers: this.headers() },
       );
+      // Brevo peut répondre 2xx (requête acceptée) sans que le message soit
+      // réellement livré (ex: hors fenêtre de conversation WhatsApp, modèle
+      // non approuvé) — on journalise le corps de la réponse pour distinguer
+      // "accepté par l'API" de "vraiment reçu par le contact".
+      this.logger.log(`Réponse Brevo WhatsApp pour ${to}: ${JSON.stringify(response.data)}`);
       return true;
     } catch (error: any) {
       this.logger.error(`Échec envoi WhatsApp à ${to}: ${error?.response?.data?.message || error?.message}`);
