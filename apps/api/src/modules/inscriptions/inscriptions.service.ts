@@ -67,6 +67,7 @@ export class InscriptionsService {
     classeId?: string;
     noteSecretaire?: string;
     parentId?: string;
+    faceDescriptor?: number[];
   }) {
     const demande = await this.prisma.demandeInscription.findFirst({
       where: { id: demandeId, tenantId },
@@ -106,6 +107,7 @@ export class InscriptionsService {
       classeId: data.classeId,
       parentId: parent.id,
       photoUrl: demande.photoUrl ?? undefined,
+      faceDescriptor: data.faceDescriptor,
       ecolePrecedente: demande.ecolePrecedente ?? undefined,
       besoinsParticuliers: demande.besoinsParticuliers ?? undefined,
       contactUrgenceNom: demande.contactUrgenceNom ?? undefined,

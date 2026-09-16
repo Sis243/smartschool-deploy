@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input';
 import { NouveauParentDialog } from '@/components/parents/nouveau-parent-dialog';
 import api from '@/lib/api';
+import { chargerModeles, extraireEmpreinte } from '@/lib/face-recognition';
 
 const statutConfig: Record<string, { label: string; cls: string; icon: any }> = {
   EN_ATTENTE: { label: 'En attente', cls: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400', icon: Clock },
@@ -31,6 +32,43 @@ function ApprobationDialog({ demande, onClose }: { demande: any; onClose: () => 
   const [parentId, setParentId] = useState('');
   const [rechercheParent, setRechercheParent] = useState('');
   const [nouveauParentOpen, setNouveauParentOpen] = useState(false);
+  const [visageStatut, setVisageStatut] = useState<'idle' | 'analyse' | 'ok' | 'echec'>('idle');
+  const [faceDescriptor, setFaceDescriptor] = useState<number[] | null>(null);
+
+  // Sans ça, une photo fournie à l'inscription en ligne restait invisible au
+  // pointage facial jusqu'à ce que quelqu'un refasse manuellement
+  // l'enrôlement depuis la fiche élève (voir VisageDialog) — l'empreinte est
+  // calculée ici, dans le navigateur de la secrétaire, au moment même de
+  // l'approbation, à partir de la photo déjà envoyée par le parent.
+  useEffect(() => {
+    if (!demande.photoUrl) return;
+    let annule = false;
+    setVisageStatut('analyse');
+    (async () => {
+      try {
+        await chargerModeles();
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        await new Promise<void>((resolve, reject) => {
+          img.onload = () => resolve();
+          img.onerror = () => reject(new Error('image illisible'));
+          img.src = demande.photoUrl;
+        });
+        if (annule) return;
+        const descripteur = await extraireEmpreinte(img);
+        if (annule) return;
+        if (descripteur) {
+          setFaceDescriptor(Array.from(descripteur));
+          setVisageStatut('ok');
+        } else {
+          setVisageStatut('echec');
+        }
+      } catch {
+        if (!annule) setVisageStatut('echec');
+      }
+    })();
+    return () => { annule = true; };
+  }, [demande.photoUrl]);
 
   const { data: classes = [] } = useQuery({
     queryKey: ['classes-mini'],
@@ -59,9 +97,14 @@ function ApprobationDialog({ demande, onClose }: { demande: any; onClose: () => 
       classeId: classeId || undefined,
       noteSecretaire: note || undefined,
       parentId: parentId || undefined,
+      faceDescriptor: faceDescriptor ?? undefined,
     }),
     onSuccess: () => {
-      toast.success(`${demande.prenomEnfant} ${demande.nomEnfant} inscrit(e) !`);
+      toast.success(
+        faceDescriptor
+          ? `${demande.prenomEnfant} ${demande.nomEnfant} inscrit(e) ! Reconnaissance faciale déjà activée.`
+          : `${demande.prenomEnfant} ${demande.nomEnfant} inscrit(e) !`,
+      );
       qc.invalidateQueries({ queryKey: ['demandes'] });
       onClose();
     },
@@ -83,7 +126,14 @@ function ApprobationDialog({ demande, onClose }: { demande: any; onClose: () => 
           <div className="space-y-4 py-2">
             <div className="bg-muted/40 rounded-lg p-3 text-sm space-y-1">
               {demande.photoUrl && (
-                <img src={demande.photoUrl} alt="" className="w-14 h-14 rounded-lg object-cover mb-1" />
+                <div className="flex items-center gap-2 mb-1">
+                  <img src={demande.photoUrl} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" />
+                  <span className="text-xs">
+                    {visageStatut === 'analyse' && <span className="text-muted-foreground">Analyse du visage...</span>}
+                    {visageStatut === 'ok' && <span className="text-emerald-600 dark:text-emerald-400">✓ Visage détecté — reconnaissance faciale prête</span>}
+                    {visageStatut === 'echec' && <span className="text-orange-600 dark:text-orange-400">Aucun visage net détecté — à refaire depuis la fiche élève</span>}
+                  </span>
+                </div>
               )}
               <p><span className="text-muted-foreground">Classe souhaitée :</span> <strong>{demande.classeVisee ?? '—'}</strong></p>
               <p><span className="text-muted-foreground">Parent indiqué sur la demande :</span> {demande.prenomParent} {demande.nomParent} — {demande.telephone}</p>

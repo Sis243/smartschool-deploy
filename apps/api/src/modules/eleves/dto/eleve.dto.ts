@@ -70,6 +70,16 @@ export class CreateEleveDto {
   @IsOptional()
   @IsString()
   contactUrgenceTelephone?: string;
+
+  // Calculée côté navigateur (face-api.js) au moment de l'approbation d'une
+  // inscription en ligne quand une photo a été fournie — évite qu'un élève
+  // inscrit en ligne reste invisible au pointage facial tant que quelqu'un
+  // n'a pas manuellement refait l'enrôlement depuis sa fiche.
+  @ApiPropertyOptional({ type: [Number], description: 'Empreinte faciale (128 valeurs, face-api.js) — calculée depuis photoUrl si fournie' })
+  @IsOptional()
+  @IsArray()
+  @IsNumber({}, { each: true })
+  faceDescriptor?: number[];
 }
 
 export class UpdateEleveDto extends PartialType(CreateEleveDto) {}
