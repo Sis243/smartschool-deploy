@@ -66,6 +66,11 @@ export class CreateTenantDto {
   @IsEmail()
   adminEmail: string;
 
+  @ApiPropertyOptional({ description: "Téléphone du responsable — utilisé pour l'invitation WhatsApp en plus de l'email." })
+  @IsOptional()
+  @IsString()
+  adminPhone?: string;
+
   @ApiPropertyOptional({
     description:
       "Requis pour l'auto-inscription publique (la personne choisit son mot de passe). " +

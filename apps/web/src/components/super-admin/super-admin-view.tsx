@@ -35,7 +35,7 @@ const slugify = (s: string) =>
 const ECOLE_VIDE = {
   name: '', slug: '', email: '', phone: '', address: '',
   subscriptionPlan: 'BASIC',
-  adminFirstName: '', adminLastName: '', adminEmail: '',
+  adminFirstName: '', adminLastName: '', adminEmail: '', adminPhone: '',
 };
 
 function NouvelleEcoleDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -108,12 +108,18 @@ function NouvelleEcoleDialog({ open, onClose }: { open: boolean; onClose: () => 
               <Input placeholder="Directeur" value={form.adminLastName} onChange={(e) => setForm({ ...form, adminLastName: e.target.value })} />
             </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Email administrateur *</Label>
-            <Input type="email" placeholder="admin@ecole.cd" value={form.adminEmail} onChange={(e) => setForm({ ...form, adminEmail: e.target.value })} />
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>Email administrateur *</Label>
+              <Input type="email" placeholder="admin@ecole.cd" value={form.adminEmail} onChange={(e) => setForm({ ...form, adminEmail: e.target.value })} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Téléphone (WhatsApp)</Label>
+              <Input placeholder="+243 ..." value={form.adminPhone} onChange={(e) => setForm({ ...form, adminPhone: e.target.value })} />
+            </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            Un e-mail d&apos;activation sera envoyé à cette adresse pour que l&apos;administrateur choisisse lui-même son mot de passe.
+            Un e-mail d&apos;activation (et un message WhatsApp si un numéro est renseigné) sera envoyé pour que l&apos;administrateur choisisse lui-même son mot de passe.
           </p>
         </div>
         <DialogFooter>

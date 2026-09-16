@@ -167,6 +167,10 @@ model Tenant {
   subscriptionCycle    CycleAbonnement @default(MENSUEL)
   subscriptionEnd      DateTime?
   dernierRappelAbonnement DateTime?
+  // Paliers (en jours restants) pour lesquels un rappel d'expiration a déjà
+  // été envoyé sur la période d'abonnement en cours — remis à vide à chaque
+  // activerAbonnement pour que les rappels reprennent sur la nouvelle échéance.
+  rappelsAbonnementEnvoyes Int[]      @default([])
   isActive         Boolean          @default(true)
   settings         Json?
   // Modules payants activables/desactivables par ecole (voir ModuleCle dans

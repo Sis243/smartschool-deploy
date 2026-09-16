@@ -77,6 +77,17 @@ export class TenantController {
 
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
   @ApiBearerAuth()
+  @Patch(':id')
+  @ApiOperation({ summary: "Modifier les coordonnées d'un établissement et de son responsable (super admin)" })
+  updateAsSuperAdmin(
+    @Param('id') id: string,
+    @Body() data: { name?: string; phone?: string; address?: string; email?: string; responsablePhone?: string },
+  ) {
+    return this.tenantService.updateAsSuperAdmin(id, data);
+  }
+
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
   @Patch(':id/toggle')
   @ApiOperation({ summary: 'Activer/Désactiver un établissement (super admin)' })
   toggle(@Param('id') id: string) {
