@@ -249,6 +249,59 @@ export class ParentPortalService {
 
   // ── Admin: générer code d'accès pour un parent ────────────────────────────
 
+  // Cœur partagé entre l'envoi déclenché par le personnel (genererAccessCode)
+  // et la récupération en libre-service par le parent lui-même
+  // (demanderRecuperation) — même code, même e-mail, même WhatsApp, pour ne
+  // jamais faire diverger les deux parcours.
+  private async envoyerCodeAcces(
+    parent: { id: string; prenom: string; telephone: string; email: string | null },
+    nomEtablissement: string,
+  ) {
+    if (!parent.email) return { envoye: false, envoyeWhatsapp: false };
+
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    await this.prisma.parent.update({
+      where: { id: parent.id },
+      data: { accessCode: code, portalActif: false, pin: null },
+    });
+
+    const frontendUrl = this.configService.get<string>('frontendUrl');
+    const lien = `${frontendUrl}/parent/login?mode=activer&code=${code}`;
+    const html = buildEmailHtml({
+      titre: 'Accédez au suivi scolaire de votre enfant',
+      etablissement: nomEtablissement,
+      paragraphes: [
+        `Bonjour ${parent.prenom},`,
+        `${nomEtablissement} vous invite à activer votre accès au portail parent SmartSchool : notes, présences, factures et notifications de votre enfant, directement depuis votre téléphone.`,
+        `Cliquez sur le bouton ci-dessous, indiquez votre numéro de téléphone et choisissez un code PIN personnel pour terminer l'activation.`,
+      ],
+      ctaLabel: 'Activer mon accès parent',
+      ctaUrl: lien,
+      note: `Votre code d'accès : ${code}. Une fois la page ouverte, vous pourrez aussi installer l'application sur votre téléphone en un clic.`,
+    });
+
+    const envoye = await this.brevo.sendEmail(
+      parent.email,
+      `Votre accès au portail parent — ${nomEtablissement}`,
+      `Bonjour ${parent.prenom},\n\n${nomEtablissement} vous invite à activer votre accès au portail parent SmartSchool.\nVotre code d'accès : ${code}\nActivez votre compte ici : ${lien}`,
+      nomEtablissement,
+      html,
+    );
+
+    // Envoi WhatsApp en plus de l'email (best-effort) : le lien est ce qui
+    // compte le plus pour un parent qui consulte surtout son téléphone —
+    // ne bloque jamais sur l'email si WhatsApp n'est pas configuré côté Brevo.
+    let envoyeWhatsapp = false;
+    if (parent.telephone) {
+      envoyeWhatsapp = await this.brevo.sendWhatsapp(
+        parent.telephone,
+        `Bonjour ${parent.prenom}, ${nomEtablissement} vous invite à activer votre accès au portail parent SmartSchool.\nVotre code d'accès : ${code}\nActivez votre compte ici : ${lien}`,
+      );
+    }
+
+    return { accessCode: code, envoye, envoyeWhatsapp };
+  }
+
   async genererAccessCode(tenantId: string, parentId: string) {
     const parent = await this.prisma.parent.findFirst({
       where: { id: parentId, tenantId },
@@ -261,46 +314,33 @@ export class ParentPortalService {
       );
     }
 
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    await this.prisma.parent.update({
-      where: { id: parentId },
-      data: { accessCode: code, portalActif: false, pin: null },
+    return this.envoyerCodeAcces(parent, parent.tenant.name);
+  }
+
+  // ── Public : récupération en libre-service ────────────────────────────────
+  // Un parent qui a perdu son PIN ou son lien d'activation n'avait aucun
+  // moyen d'agir lui-même — il fallait qu'un membre du personnel lui
+  // renvoie un code manuellement. Comme pour login(), le tenant n'est pas
+  // connu à l'avance : on cherche parmi tous les parents ayant ce téléphone
+  // (un même numéro peut être enregistré dans plusieurs écoles).
+  //
+  // Toujours le même message de retour, qu'un parent existe ou non pour ce
+  // numéro — sinon l'endpoint permettrait de deviner quels téléphones sont
+  // enregistrés (même principe que AuthService.forgotPassword côté staff).
+  async demanderRecuperation(telephone: string) {
+    const message = "Si ce numéro est enregistré, un lien d'activation vient d'être envoyé par e-mail (et par WhatsApp si disponible).";
+    if (!telephone) return { message };
+
+    const parents = await this.prisma.parent.findMany({
+      where: { telephone },
+      include: { tenant: { select: { name: true, isActive: true, modulesActifs: true } } },
     });
 
-    const frontendUrl = this.configService.get<string>('frontendUrl');
-    const lien = `${frontendUrl}/parent/login?mode=activer&code=${code}`;
-    const html = buildEmailHtml({
-      titre: 'Accédez au suivi scolaire de votre enfant',
-      etablissement: parent.tenant.name,
-      paragraphes: [
-        `Bonjour ${parent.prenom},`,
-        `${parent.tenant.name} vous invite à activer votre accès au portail parent SmartSchool : notes, présences, factures et notifications de votre enfant, directement depuis votre téléphone.`,
-        `Cliquez sur le bouton ci-dessous, indiquez votre numéro de téléphone et choisissez un code PIN personnel pour terminer l'activation.`,
-      ],
-      ctaLabel: 'Activer mon accès parent',
-      ctaUrl: lien,
-      note: `Votre code d'accès : ${code}. Une fois la page ouverte, vous pourrez aussi installer l'application sur votre téléphone en un clic.`,
-    });
-
-    const envoye = await this.brevo.sendEmail(
-      parent.email,
-      `Votre accès au portail parent — ${parent.tenant.name}`,
-      `Bonjour ${parent.prenom},\n\n${parent.tenant.name} vous invite à activer votre accès au portail parent SmartSchool.\nVotre code d'accès : ${code}\nActivez votre compte ici : ${lien}`,
-      parent.tenant.name,
-      html,
-    );
-
-    // Envoi WhatsApp en plus de l'email (best-effort) : le lien est ce qui
-    // compte le plus pour un parent qui consulte surtout son téléphone —
-    // ne bloque jamais sur l'email si WhatsApp n'est pas configuré côté Brevo.
-    let envoyeWhatsapp = false;
-    if (parent.telephone) {
-      envoyeWhatsapp = await this.brevo.sendWhatsapp(
-        parent.telephone,
-        `Bonjour ${parent.prenom}, ${parent.tenant.name} vous invite à activer votre accès au portail parent SmartSchool.\nVotre code d'accès : ${code}\nActivez votre compte ici : ${lien}`,
-      );
+    for (const parent of parents) {
+      if (!parent.tenant.isActive || !parent.tenant.modulesActifs.includes('PARENT_PORTAL')) continue;
+      await this.envoyerCodeAcces(parent, parent.tenant.name).catch(() => undefined);
     }
 
-    return { accessCode: code, envoye, envoyeWhatsapp };
+    return { message };
   }
 }

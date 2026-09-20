@@ -53,6 +53,13 @@ export class ParentPortalController {
     return this.service.login(body.telephone, body.pin);
   }
 
+  @Post('auth/mot-de-passe-oublie')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: "Renvoyer un lien d'activation en libre-service (PIN/code perdu)" })
+  motDePasseOublie(@Body() body: { telephone: string }) {
+    return this.service.demanderRecuperation(body.telephone);
+  }
+
   // ── Authenticated parent endpoints ────────────────────────────────────────
 
   @Get('dashboard')

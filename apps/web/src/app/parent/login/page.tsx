@@ -8,13 +8,14 @@ import { InstallPwaButton } from '@/components/install-pwa-button';
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
-type Mode = 'login' | 'activer';
+type Mode = 'login' | 'activer' | 'recuperer';
 
 function ParentLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [mode, setMode] = useState<Mode>('login');
   const [form, setForm] = useState({ telephone: '', pin: '', accessCode: '', pinConfirm: '' });
+  const [telephoneRecuperation, setTelephoneRecuperation] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -42,6 +43,25 @@ function ParentLoginForm() {
       router.push('/parent/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.message || 'Téléphone ou PIN incorrect');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleRecuperation(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      const { data } = await axios.post(
+        `${API}/api/v1/parent/auth/mot-de-passe-oublie`,
+        { telephone: telephoneRecuperation },
+      );
+      setSuccess(data.data.message);
+    } catch {
+      // Le serveur répond toujours pareil (anti-énumération) — une vraie
+      // erreur ici ne peut être qu'un problème réseau.
+      setError('Une erreur est survenue, réessayez.');
     } finally {
       setLoading(false);
     }
@@ -90,19 +110,21 @@ function ParentLoginForm() {
 
         <div className="bg-white rounded-2xl shadow-xl p-6 space-y-5">
           {/* Tabs */}
-          <div className="flex rounded-xl bg-gray-100 p-1">
-            {(['login', 'activer'] as Mode[]).map((m) => (
-              <button
-                key={m}
-                onClick={() => { setMode(m); setError(''); setSuccess(''); }}
-                className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
-                  mode === m ? 'bg-white shadow text-blue-600' : 'text-gray-500'
-                }`}
-              >
-                {m === 'login' ? 'Se connecter' : 'Activer le compte'}
-              </button>
-            ))}
-          </div>
+          {mode !== 'recuperer' && (
+            <div className="flex rounded-xl bg-gray-100 p-1">
+              {(['login', 'activer'] as Mode[]).map((m) => (
+                <button
+                  key={m}
+                  onClick={() => { setMode(m); setError(''); setSuccess(''); }}
+                  className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
+                    mode === m ? 'bg-white shadow text-blue-600' : 'text-gray-500'
+                  }`}
+                >
+                  {m === 'login' ? 'Se connecter' : 'Activer le compte'}
+                </button>
+              ))}
+            </div>
+          )}
 
           {success && (
             <div className="p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
@@ -149,6 +171,46 @@ function ParentLoginForm() {
                 className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition disabled:opacity-60"
               >
                 {loading ? 'Connexion...' : 'Se connecter'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setMode('recuperer'); setError(''); setSuccess(''); }}
+                className="w-full text-center text-sm text-blue-600 hover:underline"
+              >
+                Code ou PIN oublié ?
+              </button>
+            </form>
+          ) : mode === 'recuperer' ? (
+            <form onSubmit={handleRecuperation} className="space-y-4">
+              <p className="text-sm text-gray-500">
+                Entrez le numéro de téléphone enregistré pour votre enfant — un nouveau lien d&apos;activation vous sera envoyé par e-mail (et par WhatsApp si disponible).
+              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Numéro de téléphone
+                </label>
+                <input
+                  type="tel"
+                  value={telephoneRecuperation}
+                  onChange={(e) => setTelephoneRecuperation(e.target.value)}
+                  placeholder="+243 8XX XXX XXX"
+                  required
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={loading || !!success}
+                className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition disabled:opacity-60"
+              >
+                {loading ? 'Envoi...' : 'Envoyer le lien'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setMode('login'); setError(''); setSuccess(''); }}
+                className="w-full text-center text-sm text-gray-500 hover:underline"
+              >
+                Retour à la connexion
               </button>
             </form>
           ) : (
