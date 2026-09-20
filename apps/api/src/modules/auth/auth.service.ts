@@ -2,6 +2,8 @@ import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
+import { authenticator } from 'otplib';
+import * as QRCode from 'qrcode';
 import { randomBytes, createHash } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BrevoService } from '../../common/services/brevo.service';
@@ -10,6 +12,9 @@ import { LoginDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from
 
 const RESET_TOKEN_VALIDITY_MS = 60 * 60 * 1000; // 1 heure
 const INVITATION_TOKEN_VALIDITY_MS = 7 * 24 * 60 * 60 * 1000; // 7 jours
+const DEUX_FACTEURS_ISSUER = 'SmartSchool ERP';
+const DEUX_FACTEURS_PENDING_VALIDITY = '5m';
+const NB_CODES_SECOURS = 8;
 
 @Injectable()
 export class AuthService {
@@ -32,6 +37,7 @@ export class AuthService {
         role: true,
         tenantId: true,
         isSuperAdmin: true,
+        twoFactorEnabled: true,
       },
     });
 
@@ -65,7 +71,7 @@ export class AuthService {
       where: { id: payload.sub, isActive: true },
       select: {
         id: true, email: true, firstName: true, lastName: true,
-        role: true, tenantId: true, isSuperAdmin: true,
+        role: true, tenantId: true, isSuperAdmin: true, twoFactorEnabled: true,
       },
     });
     if (!user) throw new UnauthorizedException('Session expirée, veuillez vous reconnecter');
@@ -83,7 +89,112 @@ export class AuthService {
       throw new UnauthorizedException('Accès refusé à cet établissement');
     }
 
+    // Mot de passe correct mais 2FA active : pas de session complète tant que
+    // le code n'est pas vérifié — un jeton à durée de vie très courte et à
+    // usage unique (type distinct, rejeté par JwtStrategy) sert juste à relier
+    // les deux étapes sans redemander le mot de passe.
+    if (user.twoFactorEnabled) {
+      const pendingToken = await this.jwtService.signAsync(
+        { sub: user.id, type: '2fa_pending' },
+        { expiresIn: DEUX_FACTEURS_PENDING_VALIDITY },
+      );
+      return { requiresTwoFactor: true, pendingToken };
+    }
+
     return this.generateTokens(user);
+  }
+
+  // ── Vérification en 2 étapes (TOTP) ─────────────────────────────────────
+
+  async verifierDeuxFacteurs(pendingToken: string, code: string) {
+    let payload: { sub: string; type?: string };
+    try {
+      payload = await this.jwtService.verifyAsync(pendingToken);
+    } catch {
+      throw new UnauthorizedException('Session de connexion expirée, veuillez vous reconnecter');
+    }
+    if (payload.type !== '2fa_pending') {
+      throw new UnauthorizedException('Jeton invalide');
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub, isActive: true },
+      select: {
+        id: true, email: true, firstName: true, lastName: true, role: true,
+        tenantId: true, isSuperAdmin: true, twoFactorEnabled: true,
+        twoFactorSecret: true, twoFactorBackupCodes: true,
+      },
+    });
+    if (!user || !user.twoFactorEnabled || !user.twoFactorSecret) {
+      throw new UnauthorizedException('Session de connexion expirée, veuillez vous reconnecter');
+    }
+
+    const codeNettoye = code.replace(/\s+/g, '');
+    const estCodeTotp = authenticator.check(codeNettoye, user.twoFactorSecret);
+
+    if (!estCodeTotp) {
+      // Un code de secours n'est valable qu'une fois — on le retire dès usage.
+      const codeHache = createHash('sha256').update(codeNettoye.toUpperCase()).digest('hex');
+      const index = user.twoFactorBackupCodes.indexOf(codeHache);
+      if (index === -1) throw new UnauthorizedException('Code de vérification incorrect');
+
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { twoFactorBackupCodes: user.twoFactorBackupCodes.filter((_, i) => i !== index) },
+      });
+    }
+
+    return this.generateTokens(user);
+  }
+
+  // Étape 1 : génère un secret (pas encore actif) + le QR code à scanner.
+  // twoFactorEnabled reste false tant que confirmerDeuxFacteurs n'a pas
+  // validé un premier code — sinon une config ratée (QR mal scanné, etc.)
+  // verrouillerait le compte dès la prochaine connexion.
+  async preparerDeuxFacteurs(userId: string, email: string) {
+    const secret = authenticator.generateSecret();
+    await this.prisma.user.update({ where: { id: userId }, data: { twoFactorSecret: secret } });
+
+    const otpauthUrl = authenticator.keyuri(email, DEUX_FACTEURS_ISSUER, secret);
+    const qrCodeDataUrl = await QRCode.toDataURL(otpauthUrl);
+    return { secret, qrCodeDataUrl };
+  }
+
+  // Étape 2 : confirme la mise en place avec un premier code réel, active la
+  // 2FA, et génère les codes de secours (affichés une seule fois en clair).
+  async confirmerDeuxFacteurs(userId: string, code: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { twoFactorSecret: true } });
+    if (!user?.twoFactorSecret) {
+      throw new BadRequestException("Aucune configuration en cours — relancez depuis \"Activer la vérification en 2 étapes\"");
+    }
+    if (!authenticator.check(code.replace(/\s+/g, ''), user.twoFactorSecret)) {
+      throw new BadRequestException('Code incorrect — vérifiez l\'heure de votre téléphone et réessayez');
+    }
+
+    const codesSecours = Array.from({ length: NB_CODES_SECOURS }, () =>
+      randomBytes(5).toString('hex').toUpperCase(),
+    );
+    const codesHaches = codesSecours.map((c) => createHash('sha256').update(c).digest('hex'));
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { twoFactorEnabled: true, twoFactorBackupCodes: codesHaches },
+    });
+
+    return { backupCodes: codesSecours };
+  }
+
+  async desactiverDeuxFacteurs(userId: string, password: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { password: true } });
+    if (!user?.password || !(await bcrypt.compare(password, user.password))) {
+      throw new BadRequestException('Mot de passe incorrect');
+    }
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { twoFactorEnabled: false, twoFactorSecret: null, twoFactorBackupCodes: [] },
+    });
+    return { message: 'Vérification en 2 étapes désactivée' };
   }
 
   async generateTokens(user: any) {
@@ -109,6 +220,7 @@ export class AuthService {
     });
 
     return {
+      requiresTwoFactor: false as const,
       accessToken,
       refreshToken,
       user: {
@@ -119,6 +231,7 @@ export class AuthService {
         role: user.role,
         tenantId: user.tenantId,
         isSuperAdmin: user.isSuperAdmin,
+        twoFactorEnabled: !!user.twoFactorEnabled,
       },
     };
   }

@@ -1,8 +1,10 @@
 import { Test } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
-import { UnauthorizedException } from '@nestjs/common';
+import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+import { authenticator } from 'otplib';
+import { createHash } from 'crypto';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BrevoService } from '../../common/services/brevo.service';
@@ -72,7 +74,10 @@ describe('AuthService', () => {
 
     it('émet un access token et un refresh token pour des identifiants valides', async () => {
       prisma.user.findFirst.mockResolvedValue({ ...utilisateur, password: await bcrypt.hash('bon-mdp', 4) });
-      const result = await service.login({ email: utilisateur.email, password: 'bon-mdp' });
+      // 2FA désactivée pour ce compte de test : la connexion renvoie
+      // directement les jetons, jamais la branche requiresTwoFactor.
+      const result = await service.login({ email: utilisateur.email, password: 'bon-mdp' }) as
+        { accessToken: string; refreshToken: string; user: { email: string } };
 
       expect(result.accessToken).toBe('signed-token');
       expect(result.refreshToken).toBe('signed-token');
@@ -106,6 +111,91 @@ describe('AuthService', () => {
       expect(jwtService.verifyAsync).toHaveBeenCalledWith('token-valide', { secret: 'refresh-secret' });
       expect(result.accessToken).toBe('signed-token');
       expect(result.user.id).toBe(utilisateur.id);
+    });
+  });
+
+  // Utilise le vrai algorithme TOTP d'otplib (pas de mock) — c'est justement
+  // le calcul cryptographique qu'on veut vérifier, pas juste que le code
+  // appelle une fonction ; voir [[feedback-communication-and-verification]]
+  // sur l'importance de tester le comportement réel plutôt que supposé.
+  describe('Vérification en 2 étapes (TOTP)', () => {
+    it('login renvoie un jeton temporaire (pas de session complète) quand la 2FA est activée', async () => {
+      prisma.user.findFirst.mockResolvedValue({
+        ...utilisateur, password: await bcrypt.hash('bon-mdp', 4), twoFactorEnabled: true,
+      });
+
+      const result = await service.login({ email: utilisateur.email, password: 'bon-mdp' }) as
+        { requiresTwoFactor: boolean; pendingToken: string };
+
+      expect(result.requiresTwoFactor).toBe(true);
+      expect(result.pendingToken).toBeDefined();
+      // Le mot de passe seul ne doit jamais générer de session complète ici.
+      expect(jwtService.signAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ type: '2fa_pending' }),
+        expect.objectContaining({ expiresIn: '5m' }),
+      );
+    });
+
+    it('confirmerDeuxFacteurs active la 2FA avec un vrai code TOTP et refuse un code erroné', async () => {
+      const secret = authenticator.generateSecret();
+      prisma.user.findUnique.mockResolvedValue({ twoFactorSecret: secret });
+
+      await expect(service.confirmerDeuxFacteurs('user_1', '000000')).rejects.toThrow(BadRequestException);
+
+      const codeValide = authenticator.generate(secret);
+      const resultat = await service.confirmerDeuxFacteurs('user_1', codeValide);
+
+      expect(resultat.backupCodes).toHaveLength(8);
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user_1' },
+        data: expect.objectContaining({ twoFactorEnabled: true }),
+      });
+    });
+
+    it('verifierDeuxFacteurs rejette un jeton qui n\'est pas de type "2fa_pending" (anti-contournement)', async () => {
+      jwtService.verifyAsync.mockResolvedValue({ sub: 'user_1', type: 'parent' });
+      await expect(service.verifierDeuxFacteurs('jeton-normal', '123456')).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('verifierDeuxFacteurs accepte un vrai code TOTP et ouvre la session', async () => {
+      const secret = authenticator.generateSecret();
+      jwtService.verifyAsync.mockResolvedValue({ sub: 'user_1', type: '2fa_pending' });
+      prisma.user.findUnique.mockResolvedValue({
+        ...utilisateur, twoFactorEnabled: true, twoFactorSecret: secret, twoFactorBackupCodes: [],
+      });
+
+      const resultat = await service.verifierDeuxFacteurs('jeton-attente', authenticator.generate(secret)) as
+        { accessToken: string };
+
+      expect(resultat.accessToken).toBe('signed-token');
+    });
+
+    it('verifierDeuxFacteurs accepte un code de secours valide et le consomme (usage unique)', async () => {
+      const secret = authenticator.generateSecret();
+      const codeSecours = 'ABCD1234EF';
+      const codeHache = createHash('sha256').update(codeSecours).digest('hex');
+      jwtService.verifyAsync.mockResolvedValue({ sub: 'user_1', type: '2fa_pending' });
+      prisma.user.findUnique.mockResolvedValue({
+        ...utilisateur, twoFactorEnabled: true, twoFactorSecret: secret, twoFactorBackupCodes: [codeHache],
+      });
+
+      await service.verifierDeuxFacteurs('jeton-attente', codeSecours);
+
+      // Le code consommé doit disparaître de la liste — il ne doit plus resservir.
+      expect(prisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user_1' },
+        data: { twoFactorBackupCodes: [] },
+      });
+    });
+
+    it('verifierDeuxFacteurs rejette un code qui ne correspond ni au TOTP ni à un code de secours connu', async () => {
+      const secret = authenticator.generateSecret();
+      jwtService.verifyAsync.mockResolvedValue({ sub: 'user_1', type: '2fa_pending' });
+      prisma.user.findUnique.mockResolvedValue({
+        ...utilisateur, twoFactorEnabled: true, twoFactorSecret: secret, twoFactorBackupCodes: [],
+      });
+
+      await expect(service.verifierDeuxFacteurs('jeton-attente', '000000')).rejects.toThrow(UnauthorizedException);
     });
   });
 });

@@ -69,3 +69,25 @@ export class ResetPasswordDto {
   @MinLength(6)
   newPassword: string;
 }
+
+export class VerifyTwoFactorDto {
+  @ApiProperty({ description: 'Reçu dans la réponse de /auth/login quand requiresTwoFactor est vrai' })
+  @IsString()
+  pendingToken: string;
+
+  @ApiProperty({ example: '123456', description: 'Code de l\'application d\'authentification, ou un code de secours' })
+  @IsString()
+  code: string;
+}
+
+export class ConfirmTwoFactorDto {
+  @ApiProperty({ example: '123456' })
+  @IsString()
+  code: string;
+}
+
+export class DisableTwoFactorDto {
+  @ApiProperty()
+  @IsString()
+  password: string;
+}

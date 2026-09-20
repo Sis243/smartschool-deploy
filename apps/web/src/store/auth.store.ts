@@ -10,27 +10,44 @@ interface User {
   role: string;
   tenantId: string | null;
   isSuperAdmin: boolean;
+  twoFactorEnabled?: boolean;
 }
+
+// login peut aboutir directement (session ouverte) ou s'arrêter à mi-chemin
+// si la vérification en 2 étapes est activée sur le compte — le formulaire
+// de connexion doit alors afficher une étape supplémentaire avant d'avoir
+// une vraie session.
+type ResultatConnexion =
+  | { requiresTwoFactor: true; pendingToken: string }
+  | { requiresTwoFactor: false; accessToken: string; refreshToken?: string; user: User };
 
 interface AuthState {
   user: User | null;
   accessToken: string | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<ResultatConnexion>;
+  completerConnexion: (accessToken: string, refreshToken: string | undefined, user: User) => void;
   logout: () => void;
   setUser: (user: User) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       accessToken: null,
       isAuthenticated: false,
 
       login: async (email, password) => {
         const { data } = await api.post('/api/v1/auth/login', { email, password });
-        const { accessToken, refreshToken, user } = data.data;
+        const resultat: ResultatConnexion = data.data;
+        if (resultat.requiresTwoFactor === false) {
+          get().completerConnexion(resultat.accessToken, resultat.refreshToken, resultat.user);
+        }
+        return resultat;
+      },
+
+      completerConnexion: (accessToken, refreshToken, user) => {
         localStorage.setItem('access_token', accessToken);
         if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
         set({ user, accessToken, isAuthenticated: true });

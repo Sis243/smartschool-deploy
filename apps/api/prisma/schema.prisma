@@ -244,6 +244,14 @@ model User {
   lastLoginAt  DateTime?
   resetToken       String?   @unique
   resetTokenExpiry DateTime?
+  // Vérification en 2 étapes (TOTP, type Google Authenticator) — le secret
+  // n'est écrit qu'après confirmation d'un premier code valide (voir
+  // AuthService.activerDeuxFacteurs) ; twoFactorEnabled reste false pendant
+  // la mise en place, pour ne jamais bloquer un compte sur une config ratée.
+  // Les codes de secours sont stockés hachés (SHA-256), à usage unique.
+  twoFactorSecret      String?
+  twoFactorEnabled     Boolean  @default(false)
+  twoFactorBackupCodes String[] @default([])
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

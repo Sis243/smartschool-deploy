@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { User, Lock, Building2, Users, Plus, Shield, Eye, EyeOff, Check, X, ImageUp, CreditCard, Search } from 'lucide-react';
+import { User, Lock, Building2, Users, Plus, Shield, Eye, EyeOff, Check, X, ImageUp, CreditCard, Search, ShieldCheck, Copy, Loader2 } from 'lucide-react';
 import { useRef } from 'react';
 import { usePermissions } from '@/hooks/use-permissions';
 import toast from 'react-hot-toast';
@@ -198,7 +198,185 @@ function SecuriteTab() {
           </Button>
         </CardContent>
       </Card>
+
+      <div className="mt-6">
+        <DeuxFacteursCard />
+      </div>
     </div>
+  );
+}
+
+// ─── Vérification en 2 étapes ───────────────────────────────────────────────
+function ActiverDeuxFacteursDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { user, setUser } = useAuthStore();
+  const [etape, setEtape] = useState<'qr' | 'codes'>('qr');
+  const [code, setCode] = useState('');
+  const [backupCodes, setBackupCodes] = useState<string[]>([]);
+
+  const { data: setupData, isLoading } = useQuery({
+    queryKey: ['2fa-setup'],
+    queryFn: async () => (await api.post('/api/v1/auth/2fa/setup')).data.data,
+    enabled: open,
+  });
+
+  const mutation = useMutation({
+    mutationFn: () => api.post('/api/v1/auth/2fa/enable', { code }),
+    onSuccess: (res: any) => {
+      setBackupCodes(res.data.data.backupCodes);
+      setEtape('codes');
+      if (user) setUser({ ...user, twoFactorEnabled: true });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Code incorrect'),
+  });
+
+  const fermer = () => {
+    onClose();
+    setEtape('qr');
+    setCode('');
+    setBackupCodes([]);
+  };
+
+  const copierCodes = () => {
+    navigator.clipboard.writeText(backupCodes.join('\n'));
+    toast.success('Codes copiés');
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) fermer(); }}>
+      <DialogContent className="max-w-sm">
+        {etape === 'qr' ? (
+          <>
+            <DialogHeader><DialogTitle>Activer la vérification en 2 étapes</DialogTitle></DialogHeader>
+            <div className="space-y-4 py-2">
+              {isLoading || !setupData ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    Scannez ce code avec Google Authenticator, Authy ou une application similaire.
+                  </p>
+                  <img src={setupData.qrCodeDataUrl} alt="QR code" className="mx-auto w-44 h-44 rounded-lg border border-border" />
+                  <p className="text-xs text-muted-foreground text-center break-all">
+                    Ou entrez ce code manuellement : <code className="font-mono">{setupData.secret}</code>
+                  </p>
+                  <div className="space-y-1.5">
+                    <Label>Code à 6 chiffres</Label>
+                    <Input
+                      autoFocus
+                      inputMode="numeric"
+                      placeholder="123456"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value.trim())}
+                      className="text-center text-lg tracking-widest"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={fermer}>Annuler</Button>
+              <Button onClick={() => mutation.mutate()} disabled={!code || mutation.isPending} className="bg-blue-600 hover:bg-blue-500">
+                {mutation.isPending ? 'Vérification...' : 'Confirmer'}
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+          <>
+            <DialogHeader><DialogTitle>Codes de secours</DialogTitle></DialogHeader>
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-muted-foreground">
+                Conservez ces codes en lieu sûr — chacun ne peut servir qu&apos;une seule fois pour vous connecter si vous perdez votre téléphone. Ils ne seront plus jamais affichés.
+              </p>
+              <div className="bg-muted/40 rounded-lg p-3 grid grid-cols-2 gap-2 font-mono text-sm">
+                {backupCodes.map((c) => <span key={c}>{c}</span>)}
+              </div>
+              <Button variant="outline" size="sm" className="gap-1.5 w-full" onClick={copierCodes}>
+                <Copy className="w-3.5 h-3.5" />Copier les codes
+              </Button>
+            </div>
+            <DialogFooter>
+              <Button onClick={fermer} className="bg-blue-600 hover:bg-blue-500 w-full">J&apos;ai sauvegardé mes codes</Button>
+            </DialogFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DesactiverDeuxFacteursDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { user, setUser } = useAuthStore();
+  const [password, setPassword] = useState('');
+
+  const mutation = useMutation({
+    mutationFn: () => api.post('/api/v1/auth/2fa/disable', { password }),
+    onSuccess: () => {
+      toast.success('Vérification en 2 étapes désactivée');
+      if (user) setUser({ ...user, twoFactorEnabled: false });
+      onClose();
+      setPassword('');
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.message ?? 'Mot de passe incorrect'),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { onClose(); setPassword(''); } }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Désactiver la vérification en 2 étapes</DialogTitle></DialogHeader>
+        <div className="space-y-3 py-2">
+          <p className="text-sm text-muted-foreground">Confirmez votre mot de passe pour désactiver la 2FA sur ce compte.</p>
+          <div className="space-y-1.5">
+            <Label>Mot de passe</Label>
+            <Input type="password" autoFocus value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Annuler</Button>
+          <Button
+            variant="outline"
+            className="border-red-200 text-red-600 hover:bg-red-50"
+            onClick={() => mutation.mutate()}
+            disabled={!password || mutation.isPending}
+          >
+            {mutation.isPending ? 'Désactivation...' : 'Désactiver'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeuxFacteursCard() {
+  const { user } = useAuthStore();
+  const [activerOpen, setActiverOpen] = useState(false);
+  const [desactiverOpen, setDesactiverOpen] = useState(false);
+  const active = !!(user as any)?.twoFactorEnabled;
+
+  return (
+    <Card className="border-border/50 shadow-sm">
+      <ActiverDeuxFacteursDialog open={activerOpen} onClose={() => setActiverOpen(false)} />
+      <DesactiverDeuxFacteursDialog open={desactiverOpen} onClose={() => setDesactiverOpen(false)} />
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2"><ShieldCheck className="w-4 h-4" />Vérification en 2 étapes</CardTitle>
+        <CardDescription>
+          Ajoute une protection supplémentaire à votre compte avec une application d&apos;authentification (Google Authenticator, Authy...).
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex items-center justify-between">
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${active ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'}`}>
+          {active ? 'Activée' : 'Désactivée'}
+        </span>
+        {active ? (
+          <Button variant="outline" size="sm" className="border-red-200 text-red-600 hover:bg-red-50" onClick={() => setDesactiverOpen(true)}>
+            Désactiver
+          </Button>
+        ) : (
+          <Button size="sm" className="bg-blue-600 hover:bg-blue-500" onClick={() => setActiverOpen(true)}>
+            Activer
+          </Button>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

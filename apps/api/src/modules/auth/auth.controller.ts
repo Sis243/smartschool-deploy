@@ -2,7 +2,10 @@ import { Controller, Post, Body, UseGuards, Get, Patch, Request } from '@nestjs/
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
-import { LoginDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto } from './dto/auth.dto';
+import {
+  LoginDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto,
+  VerifyTwoFactorDto, ConfirmTwoFactorDto, DisableTwoFactorDto,
+} from './dto/auth.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser, CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -54,5 +57,38 @@ export class AuthController {
   @ApiOperation({ summary: 'Réinitialiser le mot de passe avec le lien reçu par email' })
   async resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
+  }
+
+  // ── Vérification en 2 étapes ────────────────────────────────────────────
+
+  @Public()
+  @Post('2fa/verify')
+  @ApiOperation({ summary: 'Terminer la connexion avec le code de vérification en 2 étapes' })
+  async verifyTwoFactor(@Body() dto: VerifyTwoFactorDto) {
+    return this.authService.verifierDeuxFacteurs(dto.pendingToken, dto.code);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Post('2fa/setup')
+  @ApiOperation({ summary: "Démarrer l'activation de la vérification en 2 étapes (génère le QR code)" })
+  async setupTwoFactor(@CurrentUser('id') userId: string, @CurrentUser('email') email: string) {
+    return this.authService.preparerDeuxFacteurs(userId, email);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Post('2fa/enable')
+  @ApiOperation({ summary: 'Confirmer et activer la vérification en 2 étapes' })
+  async enableTwoFactor(@CurrentUser('id') userId: string, @Body() dto: ConfirmTwoFactorDto) {
+    return this.authService.confirmerDeuxFacteurs(userId, dto.code);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @Post('2fa/disable')
+  @ApiOperation({ summary: 'Désactiver la vérification en 2 étapes' })
+  async disableTwoFactor(@CurrentUser('id') userId: string, @Body() dto: DisableTwoFactorDto) {
+    return this.authService.desactiverDeuxFacteurs(userId, dto.password);
   }
 }

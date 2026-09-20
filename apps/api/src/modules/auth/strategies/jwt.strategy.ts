@@ -23,6 +23,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     // ligne correspondante dans `users` et doivent être résolus à part.
     const tenantAbonnementSelect = { isActive: true, subscriptionCycle: true, subscriptionEnd: true } as const;
 
+    // Jeton intermédiaire émis par AuthService.login quand la 2FA est
+    // activée : mot de passe déjà vérifié mais session pas encore complète.
+    // Ne doit JAMAIS authentifier une route protégée — seul
+    // POST /auth/2fa/verify le lit (via jwtService.verifyAsync directement,
+    // pas ce guard), donc un jeton de ce type ici est nécessairement une
+    // tentative de contournement de la 2FA.
+    if (payload.type === '2fa_pending') {
+      throw new UnauthorizedException('Vérification en 2 étapes requise');
+    }
+
     if (payload.type === 'parent') {
       const parent = await this.prisma.parent.findUnique({
         where: { id: payload.sub },
@@ -44,6 +54,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         role: true,
         tenantId: true,
         isSuperAdmin: true,
+        twoFactorEnabled: true,
         tenant: { select: tenantAbonnementSelect },
       },
     });
