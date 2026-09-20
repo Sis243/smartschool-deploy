@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { EnregistrerSuiviDto, ProgrammerTherapieDto } from './dto/autisme.dto';
 
 @Injectable()
 export class AutismeService {
@@ -22,15 +23,7 @@ export class AutismeService {
     });
   }
 
-  async enregistrerSuivi(tenantId: string, data: {
-    eleveId: string;
-    date: string;
-    comportements: string[];
-    humeur: string;
-    activitesRealisees: string[];
-    observations: string;
-    therapeuteId?: string;
-  }) {
+  async enregistrerSuivi(tenantId: string, data: EnregistrerSuiviDto) {
     await this.verifierReferences(tenantId, data.eleveId, data.therapeuteId);
 
     return this.prisma.suiviComportemental.create({
@@ -54,11 +47,11 @@ export class AutismeService {
     });
   }
 
-  async programmerTherapie(tenantId: string, data: any) {
+  async programmerTherapie(tenantId: string, data: ProgrammerTherapieDto) {
     await this.verifierReferences(tenantId, data.eleveId, data.therapeuteId);
 
     return this.prisma.therapie.create({
-      data: { ...data, tenantId, dateSeance: new Date(data.dateSeance) },
+      data: { ...data, type: data.type as any, statut: data.statut as any, tenantId, dateSeance: new Date(data.dateSeance) },
     });
   }
 

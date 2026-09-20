@@ -3,7 +3,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import * as bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
-import { CreateTenantDto } from './dto/tenant.dto';
+import { CreateTenantDto, UpdateTenantSettingsDto, UpdateTenantAsSuperAdminDto } from './dto/tenant.dto';
 import { MODULES_ACTIVABLES } from '../../common/constants/modules';
 import { CATALOGUE_PAIE_CLES } from '../../common/constants/paie-catalogue';
 import { AuthService } from '../auth/auth.service';
@@ -173,9 +173,7 @@ export class TenantService {
   // responsablePhone est volontairement le seul champ modifiable du contact
   // ADMIN/DIRECTEUR : changer son email toucherait à son identifiant de
   // connexion, ce qui reste du ressort de l'école elle-même (Paramètres > Utilisateurs).
-  async updateAsSuperAdmin(tenantId: string, data: {
-    name?: string; phone?: string; address?: string; email?: string; responsablePhone?: string;
-  }) {
+  async updateAsSuperAdmin(tenantId: string, data: UpdateTenantAsSuperAdminDto) {
     await this.findOne(tenantId);
 
     const [tenant] = await Promise.all([
@@ -327,13 +325,7 @@ export class TenantService {
     });
   }
 
-  async updateSettings(tenantId: string, data: {
-    name?: string;
-    phone?: string;
-    address?: string;
-    email?: string;
-    logoUrl?: string;
-  }) {
+  async updateSettings(tenantId: string, data: UpdateTenantSettingsDto) {
     return this.prisma.tenant.update({
       where: { id: tenantId },
       data: {

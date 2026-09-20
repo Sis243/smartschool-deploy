@@ -7,6 +7,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ModuleActifGuard } from '../../common/guards/module-actif.guard';
 import { RequireModule } from '../../common/decorators/module.decorator';
+import { EnvoyerNotificationDto } from './dto/communication.dto';
 
 @ApiTags('Communication')
 @ApiBearerAuth()
@@ -20,8 +21,8 @@ export class CommunicationController {
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'DIRECTEUR', 'SECRETAIRE')
   @ApiOperation({ summary: 'Envoyer une notification (SMS/Email/Push/WhatsApp)' })
-  envoyer(@CurrentTenant('id') tenantId: string, @Body() data: any) {
-    return this.communicationService.envoyerNotification(tenantId, data);
+  envoyer(@CurrentTenant('id') tenantId: string, @Body() dto: EnvoyerNotificationDto) {
+    return this.communicationService.envoyerNotification(tenantId, dto);
   }
 
   @Get('notifications')

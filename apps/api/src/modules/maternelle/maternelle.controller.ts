@@ -7,6 +7,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ModuleActifGuard } from '../../common/guards/module-actif.guard';
 import { RequireModule } from '../../common/decorators/module.decorator';
+import { CreateSuiviMaternelleDto } from './dto/maternelle.dto';
 
 @ApiTags('Maternelle')
 @ApiBearerAuth()
@@ -36,7 +37,7 @@ export class MaternelleController {
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'DIRECTEUR', 'ENSEIGNANT')
   @ApiOperation({ summary: 'Enregistrer un suivi journalier' })
-  createSuivi(@CurrentTenant('id') tenantId: string, @Body() data: any) {
-    return this.maternelleService.createSuivi(tenantId, data);
+  createSuivi(@CurrentTenant('id') tenantId: string, @Body() dto: CreateSuiviMaternelleDto) {
+    return this.maternelleService.createSuivi(tenantId, dto);
   }
 }

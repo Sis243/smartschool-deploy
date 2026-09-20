@@ -1,10 +1,8 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BrevoService } from '../../common/services/brevo.service';
 import { PushService } from '../../common/services/push.service';
-
-type Cible = 'personnel' | 'parents';
-type Canal = 'SMS' | 'EMAIL' | 'PUSH' | 'WHATSAPP';
+import { EnvoyerNotificationDto } from './dto/communication.dto';
 
 @Injectable()
 export class CommunicationService {
@@ -16,17 +14,7 @@ export class CommunicationService {
     private readonly push: PushService,
   ) {}
 
-  async envoyerNotification(tenantId: string, data: {
-    titre: string;
-    contenu: string;
-    destinataires: string[];
-    canaux: Canal[];
-    cible: Cible;
-  }) {
-    if (data.cible !== 'personnel' && data.cible !== 'parents') {
-      throw new BadRequestException('cible doit être "personnel" ou "parents"');
-    }
-
+  async envoyerNotification(tenantId: string, data: EnvoyerNotificationDto) {
     // Les destinataires viennent du client : sans ce contrôle, un utilisateur
     // pourrait faire "envoyer" un message à un id d'un autre établissement.
     const idsUniques = [...new Set(data.destinataires)];

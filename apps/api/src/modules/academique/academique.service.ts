@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotifParentService } from '../notif-parent/notif-parent.service';
+import { CreateClasseDto, CreateMatiereDto, CreateExamenDto } from './dto/academique.dto';
 
 @Injectable()
 export class AcademiqueService {
@@ -21,7 +22,7 @@ export class AcademiqueService {
     });
   }
 
-  async createClasse(tenantId: string, data: any) {
+  async createClasse(tenantId: string, data: CreateClasseDto) {
     return this.prisma.classe.create({ data: { ...data, tenantId } });
   }
 
@@ -33,7 +34,7 @@ export class AcademiqueService {
     });
   }
 
-  async createMatiere(tenantId: string, data: any) {
+  async createMatiere(tenantId: string, data: CreateMatiereDto) {
     return this.prisma.matiere.create({ data: { ...data, tenantId } });
   }
 
@@ -281,7 +282,7 @@ export class AcademiqueService {
     });
   }
 
-  async createExamen(tenantId: string, data: any) {
+  async createExamen(tenantId: string, data: CreateExamenDto) {
     const [classe, matiere] = await Promise.all([
       this.prisma.classe.findFirst({ where: { id: data.classeId, tenantId } }),
       this.prisma.matiere.findFirst({ where: { id: data.matiereId, tenantId } }),

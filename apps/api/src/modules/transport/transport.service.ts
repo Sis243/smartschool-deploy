@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CreateBusDto, CreateItineraireDto, UpdateItineraireDto } from './dto/transport.dto';
 
 @Injectable()
 export class TransportService {
@@ -16,7 +17,7 @@ export class TransportService {
     });
   }
 
-  async createBus(tenantId: string, data: any) {
+  async createBus(tenantId: string, data: CreateBusDto) {
     if (data.chauffeurId) {
       const chauffeur = await this.prisma.user.findFirst({
         where: { id: data.chauffeurId, tenantId },
@@ -38,9 +39,7 @@ export class TransportService {
     if (!bus) throw new NotFoundException('Bus introuvable');
   }
 
-  async createItineraire(tenantId: string, busId: string, data: {
-    arret: string; ordre?: number; heurePrevue?: string; latitude?: number; longitude?: number;
-  }) {
+  async createItineraire(tenantId: string, busId: string, data: CreateItineraireDto) {
     await this.verifierBus(tenantId, busId);
     const dernier = await this.prisma.itineraire.findFirst({
       where: { tenantId, busId },
@@ -59,9 +58,7 @@ export class TransportService {
     });
   }
 
-  async updateItineraire(tenantId: string, id: string, data: {
-    arret?: string; ordre?: number; heurePrevue?: string; latitude?: number; longitude?: number;
-  }) {
+  async updateItineraire(tenantId: string, id: string, data: UpdateItineraireDto) {
     const itineraire = await this.prisma.itineraire.findFirst({ where: { id, tenantId } });
     if (!itineraire) throw new NotFoundException('Arrêt introuvable');
     return this.prisma.itineraire.update({ where: { id }, data });

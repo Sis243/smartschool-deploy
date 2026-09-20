@@ -5,6 +5,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { StatutPresence } from '@prisma/client';
 import { CreatePersonnelDto } from './dto/personnel.dto';
 import { CreateFichePaieDto } from './dto/paie.dto';
+import { MarquerPresencePersonnelDto } from './dto/presence.dto';
 import { AuthService } from '../auth/auth.service';
 import { CATALOGUE_PAIE } from '../../common/constants/paie-catalogue';
 import { PayslipPdfService } from '../../common/services/payslip-pdf.service';
@@ -92,7 +93,7 @@ export class RhService {
     });
   }
 
-  async marquerPresencePersonnel(tenantId: string, data: { userId: string; statut: string; date?: string }) {
+  async marquerPresencePersonnel(tenantId: string, data: MarquerPresencePersonnelDto) {
     const user = await this.prisma.user.findFirst({ where: { id: data.userId, tenantId } });
     if (!user) throw new NotFoundException('Membre du personnel introuvable');
 

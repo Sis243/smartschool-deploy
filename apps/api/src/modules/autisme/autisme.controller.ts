@@ -7,6 +7,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ModuleActifGuard } from '../../common/guards/module-actif.guard';
 import { RequireModule } from '../../common/decorators/module.decorator';
+import { EnregistrerSuiviDto, ProgrammerTherapieDto } from './dto/autisme.dto';
 
 // Données sensibles (suivi comportemental, thérapies) : réservées à
 // l'administration et aux thérapeutes, y compris en lecture.
@@ -27,8 +28,8 @@ export class AutismeController {
 
   @Post('suivi-comportemental')
   @ApiOperation({ summary: 'Enregistrer un suivi comportemental' })
-  enregistrerSuivi(@CurrentTenant('id') tenantId: string, @Body() data: any) {
-    return this.autismeService.enregistrerSuivi(tenantId, data);
+  enregistrerSuivi(@CurrentTenant('id') tenantId: string, @Body() dto: EnregistrerSuiviDto) {
+    return this.autismeService.enregistrerSuivi(tenantId, dto);
   }
 
   @Get('eleves/:eleveId/therapies')
@@ -39,8 +40,8 @@ export class AutismeController {
 
   @Post('therapies')
   @ApiOperation({ summary: 'Programmer une séance de thérapie' })
-  programmerTherapie(@CurrentTenant('id') tenantId: string, @Body() data: any) {
-    return this.autismeService.programmerTherapie(tenantId, data);
+  programmerTherapie(@CurrentTenant('id') tenantId: string, @Body() dto: ProgrammerTherapieDto) {
+    return this.autismeService.programmerTherapie(tenantId, dto);
   }
 
   @Get('pictogrammes')

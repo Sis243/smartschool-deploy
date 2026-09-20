@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CreateSuiviMaternelleDto } from './dto/maternelle.dto';
 
 @Injectable()
 export class MaternelleService {
@@ -20,16 +21,7 @@ export class MaternelleService {
     });
   }
 
-  async createSuivi(tenantId: string, data: {
-    eleveId: string;
-    date: string;
-    aMangeQuoi?: string;
-    aFaitSieste?: boolean;
-    dureesSieste?: number;
-    comportement?: string;
-    activites?: string[];
-    observations?: string;
-  }) {
+  async createSuivi(tenantId: string, data: CreateSuiviMaternelleDto) {
     const eleve = await this.prisma.eleve.findFirst({ where: { id: data.eleveId, tenantId } });
     if (!eleve) throw new NotFoundException('Élève introuvable pour cet établissement');
 

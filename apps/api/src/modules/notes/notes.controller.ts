@@ -5,6 +5,7 @@ import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { EncoderNotesDto } from './dto/notes.dto';
 
 @ApiTags('Notes')
 @ApiBearerAuth()
@@ -27,8 +28,8 @@ export class NotesController {
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'DIRECTEUR', 'ENSEIGNANT')
   @ApiOperation({ summary: 'Encoder les notes en masse' })
-  encoderNotes(@CurrentTenant('id') tenantId: string, @Body() body: { notes: any[] }) {
-    return this.notesService.encoderNotes(tenantId, body.notes);
+  encoderNotes(@CurrentTenant('id') tenantId: string, @Body() dto: EncoderNotesDto) {
+    return this.notesService.encoderNotes(tenantId, dto.notes);
   }
 
   @Get('bulletin/:eleveId')

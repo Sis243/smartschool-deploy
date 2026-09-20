@@ -53,3 +53,11 @@ export class CreateFichePaieDto {
   @IsNumber()
   joursMaladie?: number;
 }
+
+const STATUTS_FICHE_PAIE = ['BROUILLON', 'VALIDEE', 'PAYEE'] as const;
+
+export class ChangerStatutFichePaieDto {
+  @ApiProperty({ enum: STATUTS_FICHE_PAIE })
+  @IsIn(STATUTS_FICHE_PAIE)
+  statut: 'BROUILLON' | 'VALIDEE' | 'PAYEE';
+}

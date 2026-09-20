@@ -5,6 +5,15 @@ import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import {
+  CreateClasseDto,
+  CreateMatiereDto,
+  CreateAnneeScolaireDto,
+  CreatePeriodeDto,
+  CreateExamenDto,
+  PointerPresenceFacialeDto,
+  MarquerPresencesDto,
+} from './dto/academique.dto';
 
 // Gestion de la structure académique (classes/matières/années/périodes/examens)
 // et pointage des présences : ouvert au personnel enseignant et administratif,
@@ -25,8 +34,8 @@ export class AcademiqueController {
   }
 
   @Post('classes')
-  createClasse(@CurrentTenant('id') tenantId: string, @Body() data: any) {
-    return this.academiqueService.createClasse(tenantId, data);
+  createClasse(@CurrentTenant('id') tenantId: string, @Body() dto: CreateClasseDto) {
+    return this.academiqueService.createClasse(tenantId, dto);
   }
 
   @Get('matieres')
@@ -35,8 +44,8 @@ export class AcademiqueController {
   }
 
   @Post('matieres')
-  createMatiere(@CurrentTenant('id') tenantId: string, @Body() data: any) {
-    return this.academiqueService.createMatiere(tenantId, data);
+  createMatiere(@CurrentTenant('id') tenantId: string, @Body() dto: CreateMatiereDto) {
+    return this.academiqueService.createMatiere(tenantId, dto);
   }
 
   @Get('horaires/:classeId')
@@ -55,8 +64,8 @@ export class AcademiqueController {
   }
 
   @Post('annee-scolaire')
-  createAnneeScolaire(@CurrentTenant('id') tenantId: string, @Body() data: any) {
-    return this.academiqueService.createAnneeScolaire(tenantId, data);
+  createAnneeScolaire(@CurrentTenant('id') tenantId: string, @Body() dto: CreateAnneeScolaireDto) {
+    return this.academiqueService.createAnneeScolaire(tenantId, dto);
   }
 
   @Patch('annees-scolaires/:id/activer')
@@ -70,8 +79,8 @@ export class AcademiqueController {
   }
 
   @Post('periodes')
-  createPeriode(@CurrentTenant('id') tenantId: string, @Body() data: any) {
-    return this.academiqueService.createPeriode(tenantId, data);
+  createPeriode(@CurrentTenant('id') tenantId: string, @Body() dto: CreatePeriodeDto) {
+    return this.academiqueService.createPeriode(tenantId, dto);
   }
 
   @Patch('periodes/:id/activer')
@@ -88,8 +97,8 @@ export class AcademiqueController {
   }
 
   @Post('examens')
-  createExamen(@CurrentTenant('id') tenantId: string, @Body() data: any) {
-    return this.academiqueService.createExamen(tenantId, data);
+  createExamen(@CurrentTenant('id') tenantId: string, @Body() dto: CreateExamenDto) {
+    return this.academiqueService.createExamen(tenantId, dto);
   }
 
   @Get('presences/bilan-semaine')
@@ -108,16 +117,16 @@ export class AcademiqueController {
 
   @Post('presences/scan')
   @ApiOperation({ summary: 'Pointer la présence d\'un élève reconnu par scan facial' })
-  pointerPresenceFaciale(@CurrentTenant('id') tenantId: string, @Body() body: { eleveId: string }) {
-    return this.academiqueService.pointerPresenceFaciale(tenantId, body.eleveId);
+  pointerPresenceFaciale(@CurrentTenant('id') tenantId: string, @Body() dto: PointerPresenceFacialeDto) {
+    return this.academiqueService.pointerPresenceFaciale(tenantId, dto.eleveId);
   }
 
   @Put('presences')
   marquerPresences(
     @CurrentTenant('id') tenantId: string,
-    @Body() body: { presences: any[]; date: string },
+    @Body() dto: MarquerPresencesDto,
   ) {
-    return this.academiqueService.marquerPresences(tenantId, body.presences, body.date);
+    return this.academiqueService.marquerPresences(tenantId, dto.presences, dto.date);
   }
 
   @Get('presences/statistiques')

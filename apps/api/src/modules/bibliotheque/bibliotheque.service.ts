@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CreateLivreDto, EmprunterLivreDto } from './dto/bibliotheque.dto';
 
 @Injectable()
 export class BibliothequeService {
@@ -20,7 +21,7 @@ export class BibliothequeService {
     });
   }
 
-  async createLivre(tenantId: string, data: any) {
+  async createLivre(tenantId: string, data: CreateLivreDto) {
     return this.prisma.livre.create({ data: { ...data, tenantId } });
   }
 
@@ -37,7 +38,7 @@ export class BibliothequeService {
     });
   }
 
-  async emprunterLivre(tenantId: string, data: { livreId: string; eleveId: string; dateRetourPrevue: string }) {
+  async emprunterLivre(tenantId: string, data: EmprunterLivreDto) {
     const eleve = await this.prisma.eleve.findFirst({ where: { id: data.eleveId, tenantId } });
     if (!eleve) throw new NotFoundException('Élève introuvable');
 

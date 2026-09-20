@@ -5,7 +5,8 @@ import { memoryStorage } from 'multer';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
 import { RhService } from './rh.service';
 import { CreatePersonnelDto } from './dto/personnel.dto';
-import { CreateFichePaieDto } from './dto/paie.dto';
+import { CreateFichePaieDto, ChangerStatutFichePaieDto } from './dto/paie.dto';
+import { MarquerPresencePersonnelDto } from './dto/presence.dto';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -52,8 +53,8 @@ export class RhController {
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'DIRECTEUR')
   @ApiOperation({ summary: 'Marquer présence personnel (admin/directeur uniquement)' })
-  marquerPresence(@CurrentTenant('id') tenantId: string, @Body() data: any) {
-    return this.rhService.marquerPresencePersonnel(tenantId, data);
+  marquerPresence(@CurrentTenant('id') tenantId: string, @Body() dto: MarquerPresencePersonnelDto) {
+    return this.rhService.marquerPresencePersonnel(tenantId, dto);
   }
 
   // ── Paie ──────────────────────────────────────────────────────────────────
@@ -160,9 +161,9 @@ export class RhController {
   changerStatutFichePaie(
     @CurrentTenant('id') tenantId: string,
     @Param('id') id: string,
-    @Body() body: { statut: 'BROUILLON' | 'VALIDEE' | 'PAYEE' },
+    @Body() dto: ChangerStatutFichePaieDto,
   ) {
-    return this.rhService.changerStatutFichePaie(tenantId, id, body.statut);
+    return this.rhService.changerStatutFichePaie(tenantId, id, dto.statut);
   }
 
   @Delete('paie/:id')

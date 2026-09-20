@@ -22,6 +22,13 @@ import { RequireModule } from '../../common/decorators/module.decorator';
 
 // Guard that validates JWT and checks type === 'parent'
 import { ParentJwtGuard } from './parent-jwt.guard';
+import {
+  ActiverPortailDto,
+  LoginParentDto,
+  MotDePasseOublieDto,
+  SoumettrePreuveDto,
+  ValiderPreuveDto,
+} from './dto/parent-portal.dto';
 
 // ModuleActifGuard est posé route par route (jamais au niveau classe) : ce
 // contrôleur mélange routes publiques (tenant résolu par le middleware),
@@ -42,22 +49,22 @@ export class ParentPortalController {
   @Post('auth/activer')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Activer le portail parent avec le code d\'accès' })
-  activer(@Body() body: { accessCode: string; telephone: string; pin: string }) {
-    return this.service.activerPortail(body.accessCode, body.telephone, body.pin);
+  activer(@Body() dto: ActiverPortailDto) {
+    return this.service.activerPortail(dto.accessCode, dto.telephone, dto.pin);
   }
 
   @Post('auth/login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Connexion parent par téléphone + PIN' })
-  login(@Body() body: { telephone: string; pin: string }) {
-    return this.service.login(body.telephone, body.pin);
+  login(@Body() dto: LoginParentDto) {
+    return this.service.login(dto.telephone, dto.pin);
   }
 
   @Post('auth/mot-de-passe-oublie')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: "Renvoyer un lien d'activation en libre-service (PIN/code perdu)" })
-  motDePasseOublie(@Body() body: { telephone: string }) {
-    return this.service.demanderRecuperation(body.telephone);
+  motDePasseOublie(@Body() dto: MotDePasseOublieDto) {
+    return this.service.demanderRecuperation(dto.telephone);
   }
 
   // ── Authenticated parent endpoints ────────────────────────────────────────
@@ -79,19 +86,8 @@ export class ParentPortalController {
   @Post('paiements/preuve')
   @UseGuards(ParentJwtGuard, ModuleActifGuard)
   @RequireModule('PARENT_PORTAL')
-  soumettrePreuve(
-    @Request() req: any,
-    @Body()
-    body: {
-      factureId: string;
-      montant: number;
-      modePaiement: string;
-      reference?: string;
-      fichierUrl?: string;
-      fichierNom?: string;
-    },
-  ) {
-    return this.service.soumettrePreuve(req.user.tenantId, req.user.id, body);
+  soumettrePreuve(@Request() req: any, @Body() dto: SoumettrePreuveDto) {
+    return this.service.soumettrePreuve(req.user.tenantId, req.user.id, dto);
   }
 
   @Get('notifications')
@@ -132,9 +128,9 @@ export class ParentPortalController {
     @CurrentTenant('id') tenantId: string,
     @Param('id') id: string,
     @Request() req: any,
-    @Body() body: { action: 'VALIDE' | 'REJETE'; noteAdmin?: string },
+    @Body() dto: ValiderPreuveDto,
   ) {
-    return this.service.validerPreuve(tenantId, id, req.user.id, body.action, body.noteAdmin);
+    return this.service.validerPreuve(tenantId, id, req.user.id, dto.action, dto.noteAdmin);
   }
 
   @Post('admin/parents/:parentId/access-code')

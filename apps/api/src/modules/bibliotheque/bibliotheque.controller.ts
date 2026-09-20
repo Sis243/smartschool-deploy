@@ -7,6 +7,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ModuleActifGuard } from '../../common/guards/module-actif.guard';
 import { RequireModule } from '../../common/decorators/module.decorator';
+import { CreateLivreDto, EmprunterLivreDto } from './dto/bibliotheque.dto';
 
 const ROLES_GESTION_BIBLIOTHEQUE = ['ADMIN', 'DIRECTEUR', 'BIBLIOTHECAIRE'] as const;
 
@@ -28,8 +29,8 @@ export class BibliothequeController {
   @UseGuards(RolesGuard)
   @Roles(...ROLES_GESTION_BIBLIOTHEQUE)
   @ApiOperation({ summary: 'Ajouter un livre au catalogue' })
-  createLivre(@CurrentTenant('id') tenantId: string, @Body() data: any) {
-    return this.bibliothequeService.createLivre(tenantId, data);
+  createLivre(@CurrentTenant('id') tenantId: string, @Body() dto: CreateLivreDto) {
+    return this.bibliothequeService.createLivre(tenantId, dto);
   }
 
   @Get('emprunts')
@@ -42,8 +43,8 @@ export class BibliothequeController {
   @UseGuards(RolesGuard)
   @Roles(...ROLES_GESTION_BIBLIOTHEQUE)
   @ApiOperation({ summary: 'Emprunter un livre' })
-  emprunter(@CurrentTenant('id') tenantId: string, @Body() data: any) {
-    return this.bibliothequeService.emprunterLivre(tenantId, data);
+  emprunter(@CurrentTenant('id') tenantId: string, @Body() dto: EmprunterLivreDto) {
+    return this.bibliothequeService.emprunterLivre(tenantId, dto);
   }
 
   @Post('emprunts/:id/retour')

@@ -13,6 +13,7 @@ import { FinancesService } from '../finances/finances.service';
 import { BrevoService } from '../../common/services/brevo.service';
 import { buildEmailHtml } from '../../common/services/email-template';
 import { StatutPreuve } from '@prisma/client';
+import { SoumettrePreuveDto } from './dto/parent-portal.dto';
 
 @Injectable()
 export class ParentPortalService {
@@ -121,18 +122,7 @@ export class ParentPortalService {
 
   // ── Soumettre preuve de paiement ──────────────────────────────────────────
 
-  async soumettrePreuve(
-    tenantId: string,
-    parentId: string,
-    data: {
-      factureId: string;
-      montant: number;
-      modePaiement: string;
-      reference?: string;
-      fichierUrl?: string;
-      fichierNom?: string;
-    },
-  ) {
+  async soumettrePreuve(tenantId: string, parentId: string, data: SoumettrePreuveDto) {
     const facture = await this.prisma.facture.findFirst({
       where: { id: data.factureId, tenantId, eleve: { parentId } },
     });

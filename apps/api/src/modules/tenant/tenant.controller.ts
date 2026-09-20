@@ -1,7 +1,14 @@
 import { Controller, Get, Post, Patch, Put, Param, Body, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { TenantService } from './tenant.service';
-import { CreateTenantDto } from './dto/tenant.dto';
+import {
+  CreateTenantDto,
+  UpdateTenantSettingsDto,
+  UpdateTenantAsSuperAdminDto,
+  UpdateTypesPrimeActifsDto,
+  UpdateModulesDto,
+  ActiverAbonnementDto,
+} from './dto/tenant.dto';
 import { CurrentTenant } from '../../common/decorators/tenant.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
@@ -38,8 +45,8 @@ export class TenantController {
   @ApiBearerAuth()
   @Put('me')
   @ApiOperation({ summary: 'Mettre à jour les paramètres de l\'établissement (admin/directeur uniquement)' })
-  updateMyTenant(@CurrentTenant('id') tenantId: string, @Body() data: any) {
-    return this.tenantService.updateSettings(tenantId, data);
+  updateMyTenant(@CurrentTenant('id') tenantId: string, @Body() dto: UpdateTenantSettingsDto) {
+    return this.tenantService.updateSettings(tenantId, dto);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -47,8 +54,8 @@ export class TenantController {
   @ApiBearerAuth()
   @Patch('me/types-prime')
   @ApiOperation({ summary: 'Choisir les types de primes/déductions utilisés par l\'école' })
-  updateMesTypesPrimeActifs(@CurrentTenant('id') tenantId: string, @Body() body: { types: string[] }) {
-    return this.tenantService.updateTypesPrimeActifs(tenantId, body.types);
+  updateMesTypesPrimeActifs(@CurrentTenant('id') tenantId: string, @Body() dto: UpdateTypesPrimeActifsDto) {
+    return this.tenantService.updateTypesPrimeActifs(tenantId, dto.types);
   }
 
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
@@ -81,9 +88,9 @@ export class TenantController {
   @ApiOperation({ summary: "Modifier les coordonnées d'un établissement et de son responsable (super admin)" })
   updateAsSuperAdmin(
     @Param('id') id: string,
-    @Body() data: { name?: string; phone?: string; address?: string; email?: string; responsablePhone?: string },
+    @Body() dto: UpdateTenantAsSuperAdminDto,
   ) {
-    return this.tenantService.updateAsSuperAdmin(id, data);
+    return this.tenantService.updateAsSuperAdmin(id, dto);
   }
 
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
@@ -98,8 +105,8 @@ export class TenantController {
   @ApiBearerAuth()
   @Patch(':id/modules')
   @ApiOperation({ summary: 'Activer/désactiver les modules payants d\'un établissement (super admin)' })
-  updateModules(@Param('id') id: string, @Body() body: { modules: string[] }) {
-    return this.tenantService.updateModules(id, body.modules);
+  updateModules(@Param('id') id: string, @Body() dto: UpdateModulesDto) {
+    return this.tenantService.updateModules(id, dto.modules);
   }
 
   @UseGuards(JwtAuthGuard, SuperAdminGuard)
@@ -108,8 +115,8 @@ export class TenantController {
   @ApiOperation({ summary: "Activer/renouveler la licence d'un établissement (super admin)" })
   activerAbonnement(
     @Param('id') id: string,
-    @Body() body: { cycle: 'MENSUEL' | 'ANNUEL' | 'A_VIE'; dateDebut?: string },
+    @Body() dto: ActiverAbonnementDto,
   ) {
-    return this.tenantService.activerAbonnement(id, body.cycle, body.dateDebut);
+    return this.tenantService.activerAbonnement(id, dto.cycle, dto.dateDebut);
   }
 }

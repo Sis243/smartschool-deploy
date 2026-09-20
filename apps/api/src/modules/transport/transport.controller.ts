@@ -7,6 +7,7 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { ModuleActifGuard } from '../../common/guards/module-actif.guard';
 import { RequireModule } from '../../common/decorators/module.decorator';
+import { CreateBusDto, CreateItineraireDto, UpdateItineraireDto, AbonnerTransportDto } from './dto/transport.dto';
 
 @ApiTags('Transport')
 @ApiBearerAuth()
@@ -26,8 +27,8 @@ export class TransportController {
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'DIRECTEUR', 'SECRETAIRE')
   @ApiOperation({ summary: 'Ajouter un bus' })
-  createBus(@CurrentTenant('id') tenantId: string, @Body() data: any) {
-    return this.transportService.createBus(tenantId, data);
+  createBus(@CurrentTenant('id') tenantId: string, @Body() dto: CreateBusDto) {
+    return this.transportService.createBus(tenantId, dto);
   }
 
   @Get('bus/:busId/itineraires')
@@ -43,9 +44,9 @@ export class TransportController {
   createItineraire(
     @CurrentTenant('id') tenantId: string,
     @Param('busId') busId: string,
-    @Body() data: { arret: string; ordre?: number; heurePrevue?: string; latitude?: number; longitude?: number },
+    @Body() dto: CreateItineraireDto,
   ) {
-    return this.transportService.createItineraire(tenantId, busId, data);
+    return this.transportService.createItineraire(tenantId, busId, dto);
   }
 
   @Patch('itineraires/:id')
@@ -55,9 +56,9 @@ export class TransportController {
   updateItineraire(
     @CurrentTenant('id') tenantId: string,
     @Param('id') id: string,
-    @Body() data: { arret?: string; ordre?: number; heurePrevue?: string; latitude?: number; longitude?: number },
+    @Body() dto: UpdateItineraireDto,
   ) {
-    return this.transportService.updateItineraire(tenantId, id, data);
+    return this.transportService.updateItineraire(tenantId, id, dto);
   }
 
   @Delete('itineraires/:id')
@@ -78,8 +79,8 @@ export class TransportController {
   @UseGuards(RolesGuard)
   @Roles('ADMIN', 'DIRECTEUR', 'SECRETAIRE')
   @ApiOperation({ summary: 'Abonner un élève à un bus' })
-  abonner(@CurrentTenant('id') tenantId: string, @Body() data: { eleveId: string; busId: string }) {
-    return this.transportService.abonnerEleve(tenantId, data.eleveId, data.busId);
+  abonner(@CurrentTenant('id') tenantId: string, @Body() dto: AbonnerTransportDto) {
+    return this.transportService.abonnerEleve(tenantId, dto.eleveId, dto.busId);
   }
 
   @Delete('abonnements/:id')
