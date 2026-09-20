@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { saveAuthSnapshot } from './offline-queue';
 
 const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001',
@@ -48,6 +49,7 @@ async function tenterRefresh(): Promise<string | null> {
         const nouveauAccessToken = data.data.accessToken;
         localStorage.setItem('access_token', nouveauAccessToken);
         if (data.data.refreshToken) localStorage.setItem('refresh_token', data.data.refreshToken);
+        saveAuthSnapshot(nouveauAccessToken);
         return nouveauAccessToken;
       } catch {
         return null;

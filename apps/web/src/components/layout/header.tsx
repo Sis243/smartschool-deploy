@@ -1,11 +1,12 @@
 'use client';
 
-import { Bell, BellOff, LogOut, Moon, Sun, Settings, User } from 'lucide-react';
+import { Bell, BellOff, LogOut, Moon, Sun, Settings, User, WifiOff, RefreshCw } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import { useAuthStore } from '@/store/auth.store';
 import { usePushNotifications } from '@/hooks/use-push-notifications';
+import { useOfflineQueue } from '@/hooks/use-offline-queue';
 import { getInitials } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -25,6 +26,7 @@ export function Header() {
   const { theme, setTheme } = useTheme();
   const router = useRouter();
   const { isSupported, isSubscribed, loading, subscribe, unsubscribe } = usePushNotifications();
+  const { pending, isOnline, syncing } = useOfflineQueue();
 
   const handleTogglePush = async () => {
     if (!isSupported) {
@@ -54,6 +56,25 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-1">
+        {/* Hors-ligne / synchronisation en attente */}
+        {(!isOnline || pending > 0) && (
+          <Tooltip delayDuration={300}>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 mr-1">
+                {!isOnline ? <WifiOff className="w-3.5 h-3.5" /> : <RefreshCw className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />}
+                {!isOnline
+                  ? (pending > 0 ? `Hors connexion · ${pending} en attente` : 'Hors connexion')
+                  : `Synchronisation... ${pending}`}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              {!isOnline
+                ? "Connexion perdue : les présences saisies sont enregistrées localement et seront envoyées automatiquement dès le retour de la connexion."
+                : 'Envoi des actions enregistrées hors-ligne en cours.'}
+            </TooltipContent>
+          </Tooltip>
+        )}
+
         {/* Theme toggle */}
         <Tooltip delayDuration={300}>
           <TooltipTrigger asChild>

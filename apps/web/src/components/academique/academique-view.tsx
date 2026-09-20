@@ -17,6 +17,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import api from '@/lib/api';
 import { chargerModeles, extraireEmpreinte, trouverCorrespondance, EleveAvecVisage } from '@/lib/face-recognition';
+import { enqueue, absoluteApiUrl } from '@/lib/offline-queue';
 
 const niveaux = ['MATERNELLE', 'CP', 'CE1', 'CE2', 'CM1', 'CM2', '1ère', '2ème', '3ème', '4ème', '5ème', '6ème', '7ème'];
 
@@ -556,7 +557,22 @@ function PointageFacialTab() {
         setHistorique((prev) => [{ eleve: resultat.eleve, heure }, ...prev].slice(0, 15));
 
         scanMutation.mutate(resultat.eleve.id, {
-          onError: () => toast.error(`Erreur lors du pointage de ${resultat.eleve.prenom} ${resultat.eleve.nom}`),
+          onError: async (err: any) => {
+            // Pas de réponse serveur = coupure réseau : on met le pointage
+            // en attente au lieu de le perdre, plutôt qu'une erreur qui
+            // laisserait croire au personnel que rien n'a été enregistré.
+            if (!err?.response) {
+              await enqueue({
+                url: absoluteApiUrl('/api/v1/academique/presences/scan'),
+                method: 'POST',
+                body: { eleveId: resultat.eleve.id },
+                label: `Pointage — ${resultat.eleve.prenom} ${resultat.eleve.nom}`,
+              });
+              toast(`Hors connexion : pointage de ${resultat.eleve.prenom} ${resultat.eleve.nom} mis en attente`, { icon: '📶' });
+            } else {
+              toast.error(`Erreur lors du pointage de ${resultat.eleve.prenom} ${resultat.eleve.nom}`);
+            }
+          },
         });
       } finally {
         enTraitementRef.current = false;
@@ -675,7 +691,20 @@ function PresencesTab() {
       return api.put('/api/v1/academique/presences', { presences, date });
     },
     onSuccess: () => { toast.success('Présences enregistrées'); qc.invalidateQueries({ queryKey: ['presences', classeId, date] }); },
-    onError: () => toast.error('Erreur lors de l\'enregistrement'),
+    onError: async (err: any) => {
+      if (!err?.response) {
+        const presences = Object.entries(statutsMap).map(([eleveId, statut]) => ({ eleveId, statut }));
+        await enqueue({
+          url: absoluteApiUrl('/api/v1/academique/presences'),
+          method: 'PUT',
+          body: { presences, date },
+          label: `Présences classe — ${date}`,
+        });
+        toast(`Hors connexion : présences du ${date} mises en attente, seront envoyées à la reconnexion`, { icon: '📶' });
+      } else {
+        toast.error('Erreur lors de l\'enregistrement');
+      }
+    },
   });
 
   const lignesArrToutes = lignes as { eleve: any; presence: any }[];

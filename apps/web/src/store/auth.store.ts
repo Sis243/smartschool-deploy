@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import api from '@/lib/api';
+import { saveAuthSnapshot } from '@/lib/offline-queue';
 
 interface User {
   id: string;
@@ -50,6 +51,7 @@ export const useAuthStore = create<AuthState>()(
       completerConnexion: (accessToken, refreshToken, user) => {
         localStorage.setItem('access_token', accessToken);
         if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
+        saveAuthSnapshot(accessToken);
         set({ user, accessToken, isAuthenticated: true });
       },
 

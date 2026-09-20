@@ -18,6 +18,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import api from '@/lib/api';
 import { getInitials } from '@/lib/utils';
 import { usePermissions } from '@/hooks/use-permissions';
+import { enqueue, absoluteApiUrl } from '@/lib/offline-queue';
 import { CATALOGUE_PAIE } from '@/lib/paie-catalogue';
 import { useModulesActifs } from '@/hooks/use-modules-actifs';
 
@@ -231,7 +232,26 @@ function PresencesTab() {
     mutationFn: ({ userId, statut }: { userId: string; statut: string }) =>
       api.post('/api/v1/rh/presences', { userId, statut, date }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['presences-rh', date] }),
-    onError: () => toast.error('Erreur'),
+    onError: async (err: any, { userId, statut }) => {
+      if (!err?.response) {
+        await enqueue({
+          url: absoluteApiUrl('/api/v1/rh/presences'),
+          method: 'POST',
+          body: { userId, statut, date },
+          label: `Présence personnel — ${date}`,
+        });
+        // Mise à jour optimiste : le statut choisi reste affiché pendant
+        // que la requête attend une reconnexion, plutôt que de revenir
+        // silencieusement à "non marqué" comme le ferait un simple échec.
+        qc.setQueryData(['presences-rh', date], (old: any[] = []) => {
+          const sansAgent = old.filter((p) => p.userId !== userId);
+          return [...sansAgent, { userId, statut, date }];
+        });
+        toast(`Hors connexion : présence mise en attente, sera envoyée à la reconnexion`, { icon: '📶' });
+      } else {
+        toast.error('Erreur');
+      }
+    },
   });
 
   return (
