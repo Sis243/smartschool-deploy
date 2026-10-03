@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { GraduationCap, BookOpen, Clock, Users, Plus, Calendar, CheckCircle, FileText, UserCheck, TrendingUp, ScanFace, Loader2, Search } from 'lucide-react';
+import { GraduationCap, BookOpen, Clock, Users, Plus, Calendar, CheckCircle, FileText, UserCheck, TrendingUp, ScanFace, Loader2, Search, Eye } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -16,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import api from '@/lib/api';
-import { chargerModeles, extraireEmpreinte, trouverCorrespondance, EleveAvecVisage } from '@/lib/face-recognition';
+import { chargerModeles, extraireEmpreinte, trouverCorrespondance, mesurerOuvertureYeux, clignementDetecte, EleveAvecVisage } from '@/lib/face-recognition';
 import { enqueue, absoluteApiUrl } from '@/lib/offline-queue';
 
 const niveaux = ['MATERNELLE', 'CP', 'CE1', 'CE2', 'CM1', 'CM2', '1ère', '2ème', '3ème', '4ème', '5ème', '6ème', '7ème'];
@@ -487,6 +487,12 @@ function PointageFacialTab() {
   const streamRef = useRef<MediaStream | null>(null);
   const dernierPointageRef = useRef<Map<string, number>>(new Map());
   const enTraitementRef = useRef(false);
+  // Anti-usurpation : un visage reconnu doit encore cligner des yeux devant
+  // la caméra avant d'être compté présent — voir face-recognition.ts pour le
+  // détail de la méthode et ses limites (une photo fixe est bloquée, une
+  // vidéo d'une personne qui cligne ne l'est pas).
+  const candidatRef = useRef<{ eleve: EleveAvecVisage; depuis: number } | null>(null);
+  const earHistoriqueRef = useRef<number[]>([]);
 
   const [classeId, setClasseId] = useState('');
   const [actif, setActif] = useState(false);
@@ -494,6 +500,7 @@ function PointageFacialTab() {
   const [erreur, setErreur] = useState('');
   const [dernierePersonne, setDernierePersonne] = useState<{ eleve: EleveAvecVisage; heure: string } | null>(null);
   const [historique, setHistorique] = useState<{ eleve: EleveAvecVisage; heure: string }[]>([]);
+  const [candidatUI, setCandidatUI] = useState<EleveAvecVisage | null>(null);
 
   const { data: classes = [] } = useQuery({ queryKey: ['classes'], queryFn: async () => (await api.get('/api/v1/academique/classes')).data.data });
 
@@ -530,11 +537,46 @@ function PointageFacialTab() {
     };
   }, [actif]);
 
+  // Confirme définitivement un candidat (clignement détecté) : enregistre la
+  // présence et bascule l'UI, factorisé car appelé uniquement depuis la
+  // boucle de confirmation ci-dessous.
+  function confirmerPresence(eleve: EleveAvecVisage) {
+    candidatRef.current = null;
+    earHistoriqueRef.current = [];
+    setCandidatUI(null);
+    dernierPointageRef.current.set(eleve.id, Date.now());
+
+    const heure = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    setDernierePersonne({ eleve, heure });
+    setHistorique((prev) => [{ eleve, heure }, ...prev].slice(0, 15));
+
+    scanMutation.mutate(eleve.id, {
+      onError: async (err: any) => {
+        // Pas de réponse serveur = coupure réseau : on met le pointage en
+        // attente au lieu de le perdre, plutôt qu'une erreur qui laisserait
+        // croire au personnel que rien n'a été enregistré.
+        if (!err?.response) {
+          await enqueue({
+            url: absoluteApiUrl('/api/v1/academique/presences/scan'),
+            method: 'POST',
+            body: { eleveId: eleve.id },
+            label: `Pointage — ${eleve.prenom} ${eleve.nom}`,
+          });
+          toast(`Hors connexion : pointage de ${eleve.prenom} ${eleve.nom} mis en attente`, { icon: '📶' });
+        } else {
+          toast.error(`Erreur lors du pointage de ${eleve.prenom} ${eleve.nom}`);
+        }
+      },
+    });
+  }
+
+  // Boucle 1 — reconnaissance (lourde : calcule l'empreinte 128 dimensions).
+  // Ne tourne que lorsqu'aucun candidat n'est déjà en cours de confirmation.
   useEffect(() => {
     if (!actif || !pretModeles || eleves.length === 0) return;
 
     const intervalle = setInterval(async () => {
-      if (enTraitementRef.current || !videoRef.current || !canvasRef.current) return;
+      if (enTraitementRef.current || candidatRef.current || !videoRef.current || !canvasRef.current) return;
       if (videoRef.current.readyState < 2) return;
       enTraitementRef.current = true;
       try {
@@ -550,30 +592,10 @@ function PointageFacialTab() {
 
         const derniereFois = dernierPointageRef.current.get(resultat.eleve.id) ?? 0;
         if (Date.now() - derniereFois < COOLDOWN_MS) return;
-        dernierPointageRef.current.set(resultat.eleve.id, Date.now());
 
-        const heure = new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-        setDernierePersonne({ eleve: resultat.eleve, heure });
-        setHistorique((prev) => [{ eleve: resultat.eleve, heure }, ...prev].slice(0, 15));
-
-        scanMutation.mutate(resultat.eleve.id, {
-          onError: async (err: any) => {
-            // Pas de réponse serveur = coupure réseau : on met le pointage
-            // en attente au lieu de le perdre, plutôt qu'une erreur qui
-            // laisserait croire au personnel que rien n'a été enregistré.
-            if (!err?.response) {
-              await enqueue({
-                url: absoluteApiUrl('/api/v1/academique/presences/scan'),
-                method: 'POST',
-                body: { eleveId: resultat.eleve.id },
-                label: `Pointage — ${resultat.eleve.prenom} ${resultat.eleve.nom}`,
-              });
-              toast(`Hors connexion : pointage de ${resultat.eleve.prenom} ${resultat.eleve.nom} mis en attente`, { icon: '📶' });
-            } else {
-              toast.error(`Erreur lors du pointage de ${resultat.eleve.prenom} ${resultat.eleve.nom}`);
-            }
-          },
-        });
+        candidatRef.current = { eleve: resultat.eleve, depuis: Date.now() };
+        earHistoriqueRef.current = [];
+        setCandidatUI(resultat.eleve);
       } finally {
         enTraitementRef.current = false;
       }
@@ -581,6 +603,41 @@ function PointageFacialTab() {
 
     return () => clearInterval(intervalle);
   }, [actif, pretModeles, eleves]);
+
+  // Boucle 2 — confirmation par clignement (légère : repères du visage
+  // uniquement). Ne fait rien tant qu'aucun candidat n'attend confirmation.
+  const DUREE_MAX_CONFIRMATION_MS = 6000;
+  useEffect(() => {
+    if (!actif || !pretModeles) return;
+
+    const intervalle = setInterval(async () => {
+      const candidat = candidatRef.current;
+      if (!candidat || !videoRef.current || !canvasRef.current) return;
+      if (videoRef.current.readyState < 2) return;
+
+      if (Date.now() - candidat.depuis > DUREE_MAX_CONFIRMATION_MS) {
+        candidatRef.current = null;
+        earHistoriqueRef.current = [];
+        setCandidatUI(null);
+        return;
+      }
+
+      const canvas = canvasRef.current;
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      canvas.getContext('2d')?.drawImage(videoRef.current, 0, 0);
+      const ear = await mesurerOuvertureYeux(canvas);
+      if (ear == null) return;
+      earHistoriqueRef.current = [...earHistoriqueRef.current, ear].slice(-25);
+
+      if (clignementDetecte(earHistoriqueRef.current)) {
+        confirmerPresence(candidat.eleve);
+      }
+    }, 200);
+
+    return () => clearInterval(intervalle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actif, pretModeles]);
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -622,7 +679,18 @@ function PointageFacialTab() {
                     <Loader2 className="w-4 h-4 animate-spin" />Initialisation...
                   </div>
                 )}
-                {dernierePersonne && (
+                {candidatUI && (
+                  <div className="absolute bottom-3 left-3 right-3 bg-white/95 dark:bg-slate-900/95 rounded-lg p-3 flex items-center gap-3 shadow-lg animate-in fade-in slide-in-from-bottom-2">
+                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 animate-pulse">
+                      <Eye className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold truncate">{candidatUI.prenom} {candidatUI.nom}</p>
+                      <p className="text-xs text-muted-foreground">Clignez des yeux pour confirmer votre présence...</p>
+                    </div>
+                  </div>
+                )}
+                {!candidatUI && dernierePersonne && (
                   <div className="absolute bottom-3 left-3 right-3 bg-white/95 dark:bg-slate-900/95 rounded-lg p-3 flex items-center gap-3 shadow-lg animate-in fade-in slide-in-from-bottom-2">
                     <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
                       <CheckCircle className="w-5 h-5 text-emerald-600" />
