@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Brain, Heart, Calendar, Plus, Clock, CheckCircle, XCircle, Activity, User } from 'lucide-react';
+import { Brain, Heart, Calendar, Plus, Clock, CheckCircle, XCircle, Activity, User, ImagePlus, Trash2, ListChecks, ArrowUp, ArrowDown, Image as ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -354,6 +354,402 @@ function TherapiesTab({ eleveId }: { eleveId: string }) {
   );
 }
 
+// ─── Dialog Pictogramme ───────────────────────────────────────────────────────
+function PictogrammeDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const qc = useQueryClient();
+  const [label, setLabel] = useState('');
+  const [categorie, setCategorie] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState('');
+
+  const reset = () => { setLabel(''); setCategorie(''); setFile(null); setPreview(''); };
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      if (!file) throw new Error('Image requise');
+      const fd = new FormData();
+      fd.append('file', file);
+      const up = await api.post('/api/v1/uploads/pictogramme', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return api.post('/api/v1/autisme/pictogrammes', {
+        label,
+        imageUrl: up.data.data.url,
+        categorie: categorie || undefined,
+      });
+    },
+    onSuccess: () => {
+      toast.success('Pictogramme ajouté');
+      qc.invalidateQueries({ queryKey: ['pictogrammes'] });
+      onClose();
+      reset();
+    },
+    onError: () => toast.error('Erreur lors de l\'ajout du pictogramme'),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); reset(); } }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader><DialogTitle>Nouveau pictogramme</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label>Image *</Label>
+            <label className="flex flex-col items-center justify-center gap-2 border border-dashed border-border rounded-lg h-32 cursor-pointer hover:border-violet-400 transition-colors overflow-hidden">
+              {preview ? (
+                <img src={preview} alt="Aperçu" className="h-full w-full object-contain" />
+              ) : (
+                <>
+                  <ImagePlus className="w-6 h-6 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Choisir une image</span>
+                </>
+              )}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  setFile(f);
+                  setPreview(URL.createObjectURL(f));
+                }}
+              />
+            </label>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Libellé *</Label>
+            <Input value={label} onChange={e => setLabel(e.target.value)} placeholder="Ex: Boire" />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Catégorie</Label>
+            <Select value={categorie} onValueChange={setCategorie}>
+              <SelectTrigger><SelectValue placeholder="Choisir une catégorie" /></SelectTrigger>
+              <SelectContent>
+                {['ACTIONS', 'EMOTIONS', 'ALIMENTS', 'OBJETS', 'LIEUX'].map(c => (
+                  <SelectItem key={c} value={c}>{c.charAt(0) + c.slice(1).toLowerCase()}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Annuler</Button>
+          <Button
+            onClick={() => mutation.mutate()}
+            disabled={!label || !file || mutation.isPending}
+            className="bg-violet-600 hover:bg-violet-500"
+          >
+            {mutation.isPending ? 'Ajout...' : 'Ajouter'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Onglet Pictogrammes ──────────────────────────────────────────────────────
+function PictogrammesTab() {
+  const qc = useQueryClient();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [categorieFiltre, setCategorieFiltre] = useState('');
+
+  const { data: pictogrammes = [], isLoading } = useQuery({
+    queryKey: ['pictogrammes', categorieFiltre],
+    queryFn: async () =>
+      (await api.get(`/api/v1/autisme/pictogrammes${categorieFiltre ? `?categorie=${categorieFiltre}` : ''}`)).data.data,
+  });
+
+  const supprimer = useMutation({
+    mutationFn: (id: string) => api.delete(`/api/v1/autisme/pictogrammes/${id}`),
+    onSuccess: () => { toast.success('Pictogramme supprimé'); qc.invalidateQueries({ queryKey: ['pictogrammes'] }); },
+    onError: () => toast.error('Erreur lors de la suppression'),
+  });
+
+  const liste = pictogrammes as any[];
+
+  return (
+    <>
+      <PictogrammeDialog open={dialogOpen} onClose={() => setDialogOpen(false)} />
+      <Card className="border-border/50 shadow-sm">
+        <CardHeader className="pb-0">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <CardTitle className="text-base">Catalogue de pictogrammes</CardTitle>
+            <div className="flex items-center gap-2">
+              <Select value={categorieFiltre} onValueChange={(v) => setCategorieFiltre(v === '_all' ? '' : v)}>
+                <SelectTrigger className="w-44 h-9"><SelectValue placeholder="Toutes catégories" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_all">Toutes catégories</SelectItem>
+                  {['ACTIONS', 'EMOTIONS', 'ALIMENTS', 'OBJETS', 'LIEUX'].map(c => (
+                    <SelectItem key={c} value={c}>{c.charAt(0) + c.slice(1).toLowerCase()}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" className="gap-2 bg-violet-600 hover:bg-violet-500" onClick={() => setDialogOpen(true)}>
+                <Plus className="w-4 h-4" />Ajouter
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="mt-4">
+          {isLoading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+              {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-28 w-full" />)}
+            </div>
+          ) : liste.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground">
+              <ImageIcon className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p>Aucun pictogramme {categorieFiltre ? 'dans cette catégorie' : 'dans le catalogue'}</p>
+              <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setDialogOpen(true)}>
+                <Plus className="w-4 h-4" />Ajouter le premier
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
+              {liste.map((p: any) => (
+                <div key={p.id} className="group relative rounded-lg border border-border/60 bg-muted/20 p-2 flex flex-col items-center gap-1.5">
+                  <img src={p.imageUrl} alt={p.label} className="h-16 w-16 object-contain rounded" />
+                  <span className="text-xs font-medium text-center line-clamp-1">{p.label}</span>
+                  {p.categorie && <span className="text-[10px] text-muted-foreground">{p.categorie}</span>}
+                  {p.tenantId !== 'GLOBAL' && (
+                    <button
+                      type="button"
+                      onClick={() => supprimer.mutate(p.id)}
+                      className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full bg-background/90 text-red-500 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
+// ─── Dialog Routine ───────────────────────────────────────────────────────────
+function RoutineDialog({ open, onClose, eleveId }: { open: boolean; onClose: () => void; eleveId: string }) {
+  const qc = useQueryClient();
+  const [nom, setNom] = useState('');
+  const [etapes, setEtapes] = useState<{ description: string; duree: string; pictogrammeUrl: string }[]>([
+    { description: '', duree: '', pictogrammeUrl: '' },
+  ]);
+
+  const { data: pictogrammes = [] } = useQuery({
+    queryKey: ['pictogrammes', ''],
+    queryFn: async () => (await api.get('/api/v1/autisme/pictogrammes')).data.data,
+    enabled: open,
+  });
+
+  const reset = () => { setNom(''); setEtapes([{ description: '', duree: '', pictogrammeUrl: '' }]); };
+
+  const mutation = useMutation({
+    mutationFn: () =>
+      api.post('/api/v1/autisme/routines', {
+        eleveId,
+        nom,
+        etapes: etapes
+          .filter(e => e.description.trim())
+          .map((e, i) => ({
+            ordre: i + 1,
+            description: e.description,
+            duree: e.duree ? Number(e.duree) : undefined,
+            pictogrammeUrl: e.pictogrammeUrl || undefined,
+          })),
+      }),
+    onSuccess: () => {
+      toast.success('Routine créée');
+      qc.invalidateQueries({ queryKey: ['routines', eleveId] });
+      onClose();
+      reset();
+    },
+    onError: () => toast.error('Erreur lors de la création de la routine'),
+  });
+
+  const etapesValides = etapes.filter(e => e.description.trim()).length;
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) { onClose(); reset(); } }}>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Nouvelle routine personnalisée</DialogTitle></DialogHeader>
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label>Nom de la routine *</Label>
+            <Input value={nom} onChange={e => setNom(e.target.value)} placeholder="Ex: Routine du matin" />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>Étapes *</Label>
+              <Button
+                type="button" size="sm" variant="outline" className="h-7 gap-1 text-xs"
+                onClick={() => setEtapes([...etapes, { description: '', duree: '', pictogrammeUrl: '' }])}
+              >
+                <Plus className="w-3 h-3" />Étape
+              </Button>
+            </div>
+            {etapes.map((etape, i) => (
+              <div key={i} className="p-3 rounded-lg border border-border/60 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-violet-600 w-5">{i + 1}.</span>
+                  <Input
+                    value={etape.description}
+                    onChange={e => setEtapes(etapes.map((et, j) => j === i ? { ...et, description: e.target.value } : et))}
+                    placeholder="Description de l'étape"
+                    className="flex-1 h-8 text-sm"
+                  />
+                  <Button
+                    type="button" variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0"
+                    disabled={i === 0}
+                    onClick={() => {
+                      const copy = [...etapes];
+                      [copy[i - 1], copy[i]] = [copy[i], copy[i - 1]];
+                      setEtapes(copy);
+                    }}
+                  ><ArrowUp className="w-3.5 h-3.5" /></Button>
+                  <Button
+                    type="button" variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0"
+                    disabled={i === etapes.length - 1}
+                    onClick={() => {
+                      const copy = [...etapes];
+                      [copy[i + 1], copy[i]] = [copy[i], copy[i + 1]];
+                      setEtapes(copy);
+                    }}
+                  ><ArrowDown className="w-3.5 h-3.5" /></Button>
+                  {etapes.length > 1 && (
+                    <Button
+                      type="button" variant="ghost" size="icon" className="h-8 w-8 flex-shrink-0 text-red-500"
+                      onClick={() => setEtapes(etapes.filter((_, j) => j !== i))}
+                    ><Trash2 className="w-3.5 h-3.5" /></Button>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-2 pl-7">
+                  <Input
+                    type="number"
+                    value={etape.duree}
+                    onChange={e => setEtapes(etapes.map((et, j) => j === i ? { ...et, duree: e.target.value } : et))}
+                    placeholder="Durée (secondes)"
+                    className="h-8 text-xs"
+                  />
+                  <Select
+                    value={etape.pictogrammeUrl}
+                    onValueChange={(v) => setEtapes(etapes.map((et, j) => j === i ? { ...et, pictogrammeUrl: v } : et))}
+                  >
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Pictogramme (optionnel)" /></SelectTrigger>
+                    <SelectContent>
+                      {(pictogrammes as any[]).map((p: any) => (
+                        <SelectItem key={p.id} value={p.imageUrl} className="text-xs">{p.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Annuler</Button>
+          <Button
+            onClick={() => mutation.mutate()}
+            disabled={!nom || etapesValides === 0 || mutation.isPending}
+            className="bg-violet-600 hover:bg-violet-500"
+          >
+            {mutation.isPending ? 'Création...' : 'Créer la routine'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Onglet Routines ──────────────────────────────────────────────────────────
+function RoutinesTab({ eleveId }: { eleveId: string }) {
+  const qc = useQueryClient();
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const { data: routines = [], isLoading } = useQuery({
+    queryKey: ['routines', eleveId],
+    enabled: !!eleveId,
+    queryFn: async () => (await api.get(`/api/v1/autisme/eleves/${eleveId}/routines`)).data.data,
+  });
+
+  const desactiver = useMutation({
+    mutationFn: (id: string) => api.patch(`/api/v1/autisme/routines/${id}`, { isActive: false }),
+    onSuccess: () => { toast.success('Routine désactivée'); qc.invalidateQueries({ queryKey: ['routines', eleveId] }); },
+    onError: () => toast.error('Erreur'),
+  });
+
+  const supprimer = useMutation({
+    mutationFn: (id: string) => api.delete(`/api/v1/autisme/routines/${id}`),
+    onSuccess: () => { toast.success('Routine supprimée'); qc.invalidateQueries({ queryKey: ['routines', eleveId] }); },
+    onError: () => toast.error('Erreur lors de la suppression'),
+  });
+
+  if (!eleveId) return (
+    <Card className="border-border/50 border-dashed">
+      <CardContent className="py-16 text-center text-muted-foreground">
+        <User className="w-8 h-8 mx-auto mb-2 opacity-30" />
+        <p>Sélectionnez un élève pour voir ses routines</p>
+      </CardContent>
+    </Card>
+  );
+
+  const liste = routines as any[];
+
+  return (
+    <>
+      <RoutineDialog open={dialogOpen} onClose={() => setDialogOpen(false)} eleveId={eleveId} />
+      <Card className="border-border/50 shadow-sm">
+        <CardHeader className="pb-0">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Routines personnalisées</CardTitle>
+            <Button size="sm" className="gap-2 bg-violet-600 hover:bg-violet-500" onClick={() => setDialogOpen(true)}>
+              <Plus className="w-4 h-4" />Nouvelle routine
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent className="mt-4 space-y-3">
+          {isLoading ? (
+            Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)
+          ) : liste.length === 0 ? (
+            <div className="py-12 text-center text-muted-foreground">
+              <ListChecks className="w-8 h-8 mx-auto mb-2 opacity-30" />
+              <p>Aucune routine pour cet élève</p>
+              <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setDialogOpen(true)}>
+                <Plus className="w-4 h-4" />Créer la première
+              </Button>
+            </div>
+          ) : liste.map((r: any) => (
+            <div key={r.id} className="p-4 rounded-lg border border-border/60 bg-muted/20 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold">{r.nom}</span>
+                <div className="flex items-center gap-1">
+                  <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => desactiver.mutate(r.id)}>
+                    Désactiver
+                  </Button>
+                  <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-red-500" onClick={() => supprimer.mutate(r.id)}>
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(r.etapes ?? []).map((e: any) => (
+                  <div key={e.id} className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-full bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
+                    {e.pictogrammeUrl && <img src={e.pictogrammeUrl} alt="" className="w-4 h-4 object-contain" />}
+                    <span>{e.ordre}. {e.description}{e.duree ? ` (${e.duree}s)` : ''}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+    </>
+  );
+}
+
 // ─── Vue principale ───────────────────────────────────────────────────────────
 export function AutismeView() {
   const [selectedEleveId, setSelectedEleveId] = useState('');
@@ -440,12 +836,20 @@ export function AutismeView() {
         <TabsList>
           <TabsTrigger value="suivi">Suivi comportemental</TabsTrigger>
           <TabsTrigger value="therapies">Thérapies</TabsTrigger>
+          <TabsTrigger value="routines">Routines</TabsTrigger>
+          <TabsTrigger value="pictogrammes">Pictogrammes</TabsTrigger>
         </TabsList>
         <TabsContent value="suivi" className="mt-4">
           <SuiviTab eleveId={selectedEleveId} />
         </TabsContent>
         <TabsContent value="therapies" className="mt-4">
           <TherapiesTab eleveId={selectedEleveId} />
+        </TabsContent>
+        <TabsContent value="routines" className="mt-4">
+          <RoutinesTab eleveId={selectedEleveId} />
+        </TabsContent>
+        <TabsContent value="pictogrammes" className="mt-4">
+          <PictogrammesTab />
         </TabsContent>
       </Tabs>
     </div>

@@ -4,7 +4,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { AuthService } from './auth.service';
 import {
   LoginDto, ChangePasswordDto, ForgotPasswordDto, ResetPasswordDto,
-  VerifyTwoFactorDto, ConfirmTwoFactorDto, DisableTwoFactorDto,
+  VerifyTwoFactorDto, ConfirmTwoFactorDto, DisableTwoFactorDto, RefreshTokenDto,
 } from './dto/auth.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser, CurrentTenant } from '../../common/decorators/tenant.decorator';
@@ -41,8 +41,8 @@ export class AuthController {
   @Public()
   @Post('refresh')
   @ApiOperation({ summary: 'Renouveler la session avec le refresh token' })
-  async refresh(@Body() body: { refreshToken: string }) {
-    return this.authService.refresh(body.refreshToken);
+  async refresh(@Body() dto: RefreshTokenDto) {
+    return this.authService.refresh(dto.refreshToken);
   }
 
   @Public()
