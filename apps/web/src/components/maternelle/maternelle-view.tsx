@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import api from '@/lib/api';
+import { usePermissions } from '@/hooks/use-permissions';
 
 const COMPORTEMENTS = ['Calme', 'Agité', 'Sociable', 'Timide', 'Pleureur', 'Joyeux', 'Fatigué', 'Coopératif'];
 const ACTIVITES_MAT = ['Dessin', 'Peinture', 'Puzzle', 'Lecture', 'Chant', 'Danse', 'Jeu libre', 'Modelage', 'Coloriage', 'Sport'];
@@ -157,6 +158,7 @@ function SuiviDialog({ open, onClose, eleveId, eleveName }: { open: boolean; onC
 
 // ─── Onglet Élèves ────────────────────────────────────────────────────────────
 function ElevesTab({ onNewSuivi }: { onNewSuivi: (id: string, name: string) => void }) {
+  const { canGererMaternelle } = usePermissions();
   const [search, setSearch] = useState('');
   const { data: elevesData = [], isLoading } = useQuery({
     queryKey: ['eleves-maternelle'],
@@ -216,10 +218,12 @@ function ElevesTab({ onNewSuivi }: { onNewSuivi: (id: string, name: string) => v
                   <p className="text-xs text-muted-foreground">{e.classe?.nom ?? '—'}{age ? ` • ${age} ans` : ''}</p>
                   <p className="font-mono text-xs text-blue-600 dark:text-blue-400">{e.matricule}</p>
                 </div>
-                <Button size="sm" variant="outline" className="shrink-0 h-8 px-2.5 gap-1 text-xs"
-                  onClick={() => onNewSuivi(e.id, `${e.prenom} ${e.nom}`)}>
-                  <Plus className="w-3 h-3" />Suivi
-                </Button>
+                {canGererMaternelle && (
+                  <Button size="sm" variant="outline" className="shrink-0 h-8 px-2.5 gap-1 text-xs"
+                    onClick={() => onNewSuivi(e.id, `${e.prenom} ${e.nom}`)}>
+                    <Plus className="w-3 h-3" />Suivi
+                  </Button>
+                )}
               </CardContent>
             </Card>
           );

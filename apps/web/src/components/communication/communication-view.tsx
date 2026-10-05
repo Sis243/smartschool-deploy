@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Separator } from '@/components/ui/separator';
 import api from '@/lib/api';
+import { usePermissions } from '@/hooks/use-permissions';
 
 const canalConfig: Record<string, { label: string; icon: any; color: string }> = {
   SMS:       { label: 'SMS',       icon: Phone,          color: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' },
@@ -221,6 +222,7 @@ function HistoriqueTab() {
 
 // ─── Vue principale ───────────────────────────────────────────────────────────
 export function CommunicationView() {
+  const { canEnvoyerCommunication } = usePermissions();
   const { data: notifications = [] } = useQuery({
     queryKey: ['notifications'],
     queryFn: async () => (await api.get('/api/v1/communication/notifications?limit=100')).data.data,
@@ -250,12 +252,12 @@ export function CommunicationView() {
         ))}
       </div>
 
-      <Tabs defaultValue="composer">
+      <Tabs defaultValue={canEnvoyerCommunication ? 'composer' : 'historique'}>
         <TabsList>
-          <TabsTrigger value="composer">Composer</TabsTrigger>
+          {canEnvoyerCommunication && <TabsTrigger value="composer">Composer</TabsTrigger>}
           <TabsTrigger value="historique">Historique</TabsTrigger>
         </TabsList>
-        <TabsContent value="composer" className="mt-4"><ComposerTab /></TabsContent>
+        {canEnvoyerCommunication && <TabsContent value="composer" className="mt-4"><ComposerTab /></TabsContent>}
         <TabsContent value="historique" className="mt-4"><HistoriqueTab /></TabsContent>
       </Tabs>
     </div>

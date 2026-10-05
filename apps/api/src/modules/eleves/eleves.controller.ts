@@ -16,7 +16,11 @@ export class ElevesController {
 
   @Get()
   @UseGuards(RolesGuard)
-  @Roles('ADMIN', 'DIRECTEUR', 'SECRETAIRE', 'ENSEIGNANT')
+  // BIBLIOTHECAIRE et THERAPEUTE n'ont accès à rien d'autre sur ce
+  // contrôleur (pas de création/modification/fiche détaillée) — juste
+  // cette liste, dont ils ont besoin pour choisir un élève dans leur
+  // propre module (emprunt d'un livre, routine/suivi autisme).
+  @Roles('ADMIN', 'DIRECTEUR', 'SECRETAIRE', 'ENSEIGNANT', 'BIBLIOTHECAIRE', 'THERAPEUTE')
   @ApiOperation({ summary: 'Lister les élèves' })
   findAll(
     @CurrentTenant('id') tenantId: string,

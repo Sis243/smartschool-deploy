@@ -10,6 +10,7 @@ import toast from 'react-hot-toast';
 import api from '@/lib/api';
 import { formatDate } from '@/lib/utils';
 import { chargerModeles, extraireEmpreinte } from '@/lib/face-recognition';
+import { usePermissions } from '@/hooks/use-permissions';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -448,6 +449,7 @@ function VisageDialog({ open, onClose, eleve }: { open: boolean; onClose: () => 
 // ─── Table principale ─────────────────────────────────────────────────────────
 
 export function ElevesTable() {
+  const { canGererEleves } = usePermissions();
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -507,9 +509,11 @@ export function ElevesTable() {
               <Button variant="outline" size="sm" className="gap-2">
                 <FileDown className="w-4 h-4" />Exporter
               </Button>
-              <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={openNew}>
-                <Plus className="w-4 h-4" />Nouvel élève
-              </Button>
+              {canGererEleves && (
+                <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={openNew}>
+                  <Plus className="w-4 h-4" />Nouvel élève
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -540,7 +544,7 @@ export function ElevesTable() {
                   <TableCell colSpan={6} className="py-16 text-center">
                     <div className="flex flex-col items-center gap-2 text-muted-foreground">
                       <p className="font-medium">{search ? 'Aucun résultat pour cette recherche' : 'Aucun élève enregistré'}</p>
-                      {!search && (
+                      {!search && canGererEleves && (
                         <Button size="sm" variant="outline" className="mt-2 gap-2" onClick={openNew}>
                           <Plus className="w-4 h-4" />Inscrire le premier élève
                         </Button>
@@ -580,14 +584,16 @@ export function ElevesTable() {
                     <TableCell className="text-sm text-muted-foreground">{eleve.parent?.telephone || '—'}</TableCell>
                     <TableCell>
                       <div className="flex items-center justify-center gap-1">
-                        <Tooltip delayDuration={0}>
-                          <TooltipTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => openEdit(eleve)}>
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Modifier</TooltipContent>
-                        </Tooltip>
+                        {canGererEleves && (
+                          <Tooltip delayDuration={0}>
+                            <TooltipTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" onClick={() => openEdit(eleve)}>
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Modifier</TooltipContent>
+                          </Tooltip>
+                        )}
                         <Tooltip delayDuration={0}>
                           <TooltipTrigger asChild>
                             <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground">
@@ -609,7 +615,7 @@ export function ElevesTable() {
                           </TooltipTrigger>
                           <TooltipContent>{eleve.faceDescriptor ? 'Visage enregistré — recapturer' : 'Enregistrer le visage (pointage facial)'}</TooltipContent>
                         </Tooltip>
-                        {eleve.parentId && (
+                        {eleve.parentId && canGererEleves && (
                           <Tooltip delayDuration={0}>
                             <TooltipTrigger asChild>
                               <Button
@@ -636,22 +642,24 @@ export function ElevesTable() {
                             <TooltipContent>Envoyer le lien d&apos;activation du portail parent (par e-mail)</TooltipContent>
                           </Tooltip>
                         )}
-                        <Tooltip delayDuration={0}>
-                          <TooltipTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-red-500"
-                              onClick={() => {
-                                if (confirm(`Archiver ${eleve.prenom} ${eleve.nom} ?`))
-                                  deleteMutation.mutate(eleve.id);
-                              }}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>Archiver</TooltipContent>
-                        </Tooltip>
+                        {canGererEleves && (
+                          <Tooltip delayDuration={0}>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-red-500"
+                                onClick={() => {
+                                  if (confirm(`Archiver ${eleve.prenom} ${eleve.nom} ?`))
+                                    deleteMutation.mutate(eleve.id);
+                                }}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Archiver</TooltipContent>
+                          </Tooltip>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>

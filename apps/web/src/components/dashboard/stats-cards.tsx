@@ -15,7 +15,7 @@ function TrendIcon({ trend }: { trend: 'up' | 'down' | 'neutral' }) {
 }
 
 export function StatsCards() {
-  const { canVoirFinances } = usePermissions();
+  const { canVoirFinances, canVoirElevesEtAcademique } = usePermissions();
 
   // Le détail financier (recettes, recouvrement, impayés) est réservé à
   // ADMIN/DIRECTEUR/COMPTABLE/SECRETAIRE côté API — on évite d'appeler
@@ -27,18 +27,24 @@ export function StatsCards() {
     enabled: canVoirFinances,
   });
 
+  // GET /eleves est lui aussi réservé à ADMIN/DIRECTEUR/SECRETAIRE/ENSEIGNANT
+  // côté API (pas seulement les mutations) — même traitement que les finances
+  // ci-dessus pour un chauffeur/bibliothécaire/thérapeute/comptable/
+  // personnel d'appui.
   const { data: elevesData, isLoading: loadingEleves } = useQuery({
     queryKey: ['eleves-count'],
     queryFn: async () => (await api.get('/api/v1/eleves?limit=1')).data.data,
     staleTime: 60_000,
+    enabled: canVoirElevesEtAcademique,
   });
 
-  const isLoading = (canVoirFinances && loadingFinance) || loadingEleves;
+  const isLoading = (canVoirFinances && loadingFinance) || (canVoirElevesEtAcademique && loadingEleves);
 
   if (isLoading) {
+    const nbCartes = (canVoirFinances ? 3 : 0) + (canVoirElevesEtAcademique ? 1 : 0);
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {Array.from({ length: canVoirFinances ? 4 : 1 }).map((_, i) => (
+        {Array.from({ length: nbCartes || 1 }).map((_, i) => (
           <Card key={i} className="border-border/50">
             <CardContent className="p-5 space-y-3">
               <Skeleton className="h-4 w-28" />
@@ -56,14 +62,18 @@ export function StatsCards() {
   const tauxRecouvrement = fd?.tauxRecouvrement ?? 0;
 
   const stats = [
-    {
-      label: 'Total Élèves',
-      value: totalEleves.toLocaleString('fr-FR'),
-      change: 'Élèves inscrits',
-      trend: 'neutral' as const,
-      icon: Users,
-      color: 'bg-blue-500/10 text-blue-500',
-    },
+    ...(canVoirElevesEtAcademique
+      ? [
+          {
+            label: 'Total Élèves',
+            value: totalEleves.toLocaleString('fr-FR'),
+            change: 'Élèves inscrits',
+            trend: 'neutral' as const,
+            icon: Users,
+            color: 'bg-blue-500/10 text-blue-500',
+          },
+        ]
+      : []),
     ...(canVoirFinances
       ? [
           {

@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import api from '@/lib/api';
+import { usePermissions } from '@/hooks/use-permissions';
 import { formatMontant } from '@/lib/utils';
 
 // ─── Dialog Nouveau livre ─────────────────────────────────────────────────────
@@ -156,6 +157,7 @@ function EmpruntDialog({ open, onClose, livre }: { open: boolean; onClose: () =>
 
 // ─── Onglet Catalogue ─────────────────────────────────────────────────────────
 function CatalogueTab() {
+  const { canGererBibliotheque } = usePermissions();
   const [livreDialog, setLivreDialog] = useState(false);
   const [empruntLivre, setEmpruntLivre] = useState<any>(null);
   const [search, setSearch] = useState('');
@@ -179,9 +181,11 @@ function CatalogueTab() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input placeholder="Titre, auteur, ISBN..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
             </div>
-            <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={() => setLivreDialog(true)}>
-              <Plus className="w-4 h-4" />Ajouter un livre
-            </Button>
+            {canGererBibliotheque && (
+              <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={() => setLivreDialog(true)}>
+                <Plus className="w-4 h-4" />Ajouter un livre
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent className="p-0 mt-4">
@@ -198,7 +202,7 @@ function CatalogueTab() {
                 <TableRow key={i}>{Array.from({ length: 5 }).map((__, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
               )) : (livres as any[]).length === 0 ? (
                 <TableRow><TableCell colSpan={5} className="py-12 text-center text-muted-foreground">
-                  {search ? 'Aucun résultat' : <><p>Catalogue vide</p><Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setLivreDialog(true)}><Plus className="w-4 h-4" />Premier livre</Button></>}
+                  {search ? 'Aucun résultat' : <><p>Catalogue vide</p>{canGererBibliotheque && <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setLivreDialog(true)}><Plus className="w-4 h-4" />Premier livre</Button>}</>}
                 </TableCell></TableRow>
               ) : (livres as any[]).map((l: any) => (
                 <TableRow key={l.id}>
@@ -219,9 +223,11 @@ function CatalogueTab() {
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Button size="sm" variant="outline" className="h-7 text-xs gap-1" disabled={l.quantiteDisponible < 1} onClick={() => setEmpruntLivre(l)}>
-                      <BookOpen className="w-3 h-3" />Emprunter
-                    </Button>
+                    {canGererBibliotheque && (
+                      <Button size="sm" variant="outline" className="h-7 text-xs gap-1" disabled={l.quantiteDisponible < 1} onClick={() => setEmpruntLivre(l)}>
+                        <BookOpen className="w-3 h-3" />Emprunter
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -236,6 +242,7 @@ function CatalogueTab() {
 // ─── Onglet Emprunts ──────────────────────────────────────────────────────────
 function EmpruntsTab() {
   const qc = useQueryClient();
+  const { canGererBibliotheque } = usePermissions();
   const [filtre, setFiltre] = useState('EN_COURS');
 
   const { data: emprunts = [], isLoading } = useQuery({
@@ -276,14 +283,14 @@ function EmpruntsTab() {
               <TableHead>Livre</TableHead><TableHead>Élève</TableHead>
               <TableHead>Date emprunt</TableHead><TableHead>Retour prévu</TableHead>
               <TableHead>Statut</TableHead>
-              {filtre === 'EN_COURS' && <TableHead className="w-24">Action</TableHead>}
+              {filtre === 'EN_COURS' && canGererBibliotheque && <TableHead className="w-24">Action</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? Array.from({ length: 4 }).map((_, i) => (
               <TableRow key={i}>{Array.from({ length: 5 }).map((__, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
             )) : (emprunts as any[]).length === 0 ? (
-              <TableRow><TableCell colSpan={filtre === 'EN_COURS' ? 6 : 5} className="py-12 text-center text-muted-foreground">
+              <TableRow><TableCell colSpan={filtre === 'EN_COURS' && canGererBibliotheque ? 6 : 5} className="py-12 text-center text-muted-foreground">
                 Aucun emprunt {filtre === 'EN_COURS' ? 'en cours' : 'retourné'}
               </TableCell></TableRow>
             ) : (emprunts as any[]).map((e: any) => {
@@ -314,7 +321,7 @@ function EmpruntsTab() {
                     )}
                     {e.penalite > 0 && <p className="text-xs text-orange-600 mt-0.5">Pénalité: {formatMontant(e.penalite)}</p>}
                   </TableCell>
-                  {filtre === 'EN_COURS' && (
+                  {filtre === 'EN_COURS' && canGererBibliotheque && (
                     <TableCell>
                       <Tooltip delayDuration={0}>
                         <TooltipTrigger asChild>

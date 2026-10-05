@@ -5,13 +5,21 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import api from '@/lib/api';
+import { usePermissions } from '@/hooks/use-permissions';
 
 export function PresenceChart() {
+  const { canVoirElevesEtAcademique } = usePermissions();
+
+  // Réservé à ADMIN/DIRECTEUR/SECRETAIRE/ENSEIGNANT côté API — éviter
+  // l'appel (et le 403 systématique) pour les autres rôles.
   const { data, isLoading } = useQuery({
     queryKey: ['bilan-semaine'],
     queryFn: () => api.get('/api/v1/academique/presences/bilan-semaine').then((r) => r.data.data as any[]),
     staleTime: 5 * 60 * 1000,
+    enabled: canVoirElevesEtAcademique,
   });
+
+  if (!canVoirElevesEtAcademique) return null;
 
   const hasData = data?.some((d: any) => d.presents > 0 || d.absents > 0);
 

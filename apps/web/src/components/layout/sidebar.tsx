@@ -16,8 +16,8 @@ import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/dashboard', label: 'Tableau de bord', icon: LayoutDashboard },
-  { href: '/eleves', label: 'Élèves', icon: Users },
-  { href: '/academique', label: 'Académique', icon: GraduationCap },
+  { href: '/eleves', label: 'Élèves', icon: Users, requires: 'canVoirElevesEtAcademique' as const },
+  { href: '/academique', label: 'Académique', icon: GraduationCap, requires: 'canVoirElevesEtAcademique' as const },
   { href: '/notes', label: 'Notes & Bulletins', icon: BookOpen },
   // Modules entièrement réservés à certains rôles côté API — masqués aux
   // autres pour éviter une page dont chaque appel échoue en 403.

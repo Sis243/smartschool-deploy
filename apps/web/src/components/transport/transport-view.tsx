@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import api from '@/lib/api';
+import { usePermissions } from '@/hooks/use-permissions';
 
 // ─── Dialog Nouveau bus ───────────────────────────────────────────────────────
 function BusDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -138,6 +139,7 @@ function AbonnementDialog({ open, onClose }: { open: boolean; onClose: () => voi
 // ─── Dialog Arrêts (itinéraire) ────────────────────────────────────────────────
 function ArretsDialog({ bus, onClose }: { bus: any; onClose: () => void }) {
   const qc = useQueryClient();
+  const { canGererTransport } = usePermissions();
   const [arret, setArret] = useState('');
   const [heurePrevue, setHeurePrevue] = useState('');
 
@@ -181,24 +183,28 @@ function ArretsDialog({ bus, onClose }: { bus: any; onClose: () => void }) {
                   <MapPin className="w-3.5 h-3.5 text-orange-500 shrink-0" />
                   <span className="flex-1 text-sm">{it.arret}</span>
                   {it.heurePrevue && <span className="text-xs text-muted-foreground">{it.heurePrevue}</span>}
-                  <Button
-                    size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-red-500 shrink-0"
-                    disabled={supprimer.isPending}
-                    onClick={() => supprimer.mutate(it.id)}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
+                  {canGererTransport && (
+                    <Button
+                      size="icon" variant="ghost" className="h-6 w-6 text-muted-foreground hover:text-red-500 shrink-0"
+                      disabled={supprimer.isPending}
+                      onClick={() => supprimer.mutate(it.id)}
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
           )}
-          <div className="flex gap-2 pt-2 border-t border-border/60">
-            <Input placeholder="Nom de l'arrêt" value={arret} onChange={(e) => setArret(e.target.value)} className="flex-1" />
-            <Input type="time" value={heurePrevue} onChange={(e) => setHeurePrevue(e.target.value)} className="w-28" />
-            <Button size="icon" className="shrink-0 bg-blue-600 hover:bg-blue-500" disabled={!arret.trim() || ajouter.isPending} onClick={() => ajouter.mutate()}>
-              <Plus className="w-4 h-4" />
-            </Button>
-          </div>
+          {canGererTransport && (
+            <div className="flex gap-2 pt-2 border-t border-border/60">
+              <Input placeholder="Nom de l'arrêt" value={arret} onChange={(e) => setArret(e.target.value)} className="flex-1" />
+              <Input type="time" value={heurePrevue} onChange={(e) => setHeurePrevue(e.target.value)} className="w-28" />
+              <Button size="icon" className="shrink-0 bg-blue-600 hover:bg-blue-500" disabled={!arret.trim() || ajouter.isPending} onClick={() => ajouter.mutate()}>
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Fermer</Button>
@@ -210,6 +216,7 @@ function ArretsDialog({ bus, onClose }: { bus: any; onClose: () => void }) {
 
 // ─── Onglet Bus ───────────────────────────────────────────────────────────────
 function BusTab() {
+  const { canGererTransport } = usePermissions();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [busArrets, setBusArrets] = useState<any | null>(null);
   const [search, setSearch] = useState('');
@@ -240,7 +247,9 @@ function BusTab() {
             <CardContent className="py-16 text-center text-muted-foreground">
               <Bus className="w-8 h-8 mx-auto mb-2 opacity-30" />
               <p>Aucun bus enregistré</p>
-              <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setDialogOpen(true)}><Plus className="w-4 h-4" />Ajouter le premier bus</Button>
+              {canGererTransport && (
+                <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setDialogOpen(true)}><Plus className="w-4 h-4" />Ajouter le premier bus</Button>
+              )}
             </CardContent>
           </Card>
         ) : (
@@ -277,12 +286,14 @@ function BusTab() {
                 </CardContent>
               </Card>
             ))}
-            <Card className="border-border/50 border-dashed flex items-center justify-center min-h-[160px] cursor-pointer hover:border-blue-400 transition-colors" onClick={() => setDialogOpen(true)}>
-              <div className="text-center text-muted-foreground">
-                <Plus className="w-6 h-6 mx-auto mb-1" />
-                <p className="text-sm">Ajouter un bus</p>
-              </div>
-            </Card>
+            {canGererTransport && (
+              <Card className="border-border/50 border-dashed flex items-center justify-center min-h-[160px] cursor-pointer hover:border-blue-400 transition-colors" onClick={() => setDialogOpen(true)}>
+                <div className="text-center text-muted-foreground">
+                  <Plus className="w-6 h-6 mx-auto mb-1" />
+                  <p className="text-sm">Ajouter un bus</p>
+                </div>
+              </Card>
+            )}
           </>
         )}
       </div>
@@ -293,6 +304,7 @@ function BusTab() {
 // ─── Onglet Abonnements ───────────────────────────────────────────────────────
 function AbonnementsTab() {
   const qc = useQueryClient();
+  const { canGererTransport } = usePermissions();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [search, setSearch] = useState('');
   const { data: abonnementsData = [], isLoading } = useQuery({
@@ -327,9 +339,11 @@ function AbonnementsTab() {
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
                 <Input placeholder="Rechercher un élève, un bus..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-8 h-8 text-sm" />
               </div>
-              <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={() => setDialogOpen(true)}>
-                <Plus className="w-4 h-4" />Abonner un élève
-              </Button>
+              {canGererTransport && (
+                <Button size="sm" className="gap-2 bg-blue-600 hover:bg-blue-500" onClick={() => setDialogOpen(true)}>
+                  <Plus className="w-4 h-4" />Abonner un élève
+                </Button>
+              )}
             </div>
           </div>
         </CardHeader>
@@ -348,7 +362,9 @@ function AbonnementsTab() {
               )) : (abonnements as any[]).length === 0 ? (
                 <TableRow><TableCell colSpan={5} className="py-12 text-center text-muted-foreground">
                   <p>Aucun abonnement enregistré</p>
-                  <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setDialogOpen(true)}><Plus className="w-4 h-4" />Abonner un élève</Button>
+                  {canGererTransport && (
+                    <Button size="sm" variant="outline" className="mt-3 gap-2" onClick={() => setDialogOpen(true)}><Plus className="w-4 h-4" />Abonner un élève</Button>
+                  )}
                 </TableCell></TableRow>
               ) : (abonnements as any[]).map((a: any) => (
                 <TableRow key={a.id}>
@@ -362,13 +378,15 @@ function AbonnementsTab() {
                     </div>
                   </TableCell>
                   <TableCell className="text-center">
-                    <Button
-                      variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500"
-                      disabled={desabonner.isPending}
-                      onClick={() => { if (confirm(`Désabonner ${a.eleve?.prenom} ${a.eleve?.nom} du transport ?`)) desabonner.mutate(a.id); }}
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </Button>
+                    {canGererTransport && (
+                      <Button
+                        variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500"
+                        disabled={desabonner.isPending}
+                        onClick={() => { if (confirm(`Désabonner ${a.eleve?.prenom} ${a.eleve?.nom} du transport ?`)) desabonner.mutate(a.id); }}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}

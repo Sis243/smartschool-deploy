@@ -12,6 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import api from '@/lib/api';
+import { usePermissions } from '@/hooks/use-permissions';
 
 const mentionConfig: Record<string, string> = {
   'Excellent':   'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
@@ -257,18 +258,19 @@ function BulletinsTab() {
 }
 
 export function NotesView() {
+  const { canEncoderNotes } = usePermissions();
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Notes & Bulletins</h1>
         <p className="text-muted-foreground text-sm mt-1">Encodage des notes et génération des bulletins scolaires</p>
       </div>
-      <Tabs defaultValue="saisie">
+      <Tabs defaultValue={canEncoderNotes ? 'saisie' : 'bulletins'}>
         <TabsList>
-          <TabsTrigger value="saisie">Saisie des notes</TabsTrigger>
+          {canEncoderNotes && <TabsTrigger value="saisie">Saisie des notes</TabsTrigger>}
           <TabsTrigger value="bulletins">Bulletins</TabsTrigger>
         </TabsList>
-        <TabsContent value="saisie" className="mt-4"><SaisieNotesTab /></TabsContent>
+        {canEncoderNotes && <TabsContent value="saisie" className="mt-4"><SaisieNotesTab /></TabsContent>}
         <TabsContent value="bulletins" className="mt-4"><BulletinsTab /></TabsContent>
       </Tabs>
     </div>
